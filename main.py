@@ -26,23 +26,77 @@ SUPPORT_GROUP_LINK = "https://t.me/gmailhubbdsaort"
 HELPLINE_USERNAME = "gmailhub_Helpline"
 MIN_WITHDRAW = 10.0  # সর্বনিম্ন উইথড্র অ্যামাউন্ট
 
-GMAIL_PRICE = 16.0  # প্রতি জিমেইলের দাম ১৬ টাকা
+GMAIL_PRICE = 18.0  # প্রতি জিমেইলের দাম ১৮ টাকা
 
 WORK_VIDEO_LINK = ""
 
 
-# --- AUTO-GENERATOR HELPER FUNCTION ---
+# --- HIGH QUALITY REALISTIC CREDENTIALS GENERATOR ---
 def generate_auto_credentials():
-  # ইউনিক ইউজারনেম তৈরি (যেমন: user_a1b2_3456@gmail.com)
-  random_str = "".join(random.choices(string.ascii_lowercase, k=4))
-  random_num = random.randint(1000, 9999)
-  email = f"user_{random_str}_{random_num}@gmail.com"
+  # রিয়েল ও ন্যাচারাল ফার্স্ট নেম এবং লাস্ট নেম
+  first_names = [
+      "Ethan",
+      "Oliver",
+      "Lucas",
+      "Mason",
+      "Logan",
+      "Alexander",
+      "James",
+      "Benjamin",
+      "Henry",
+      "Daniel",
+      "Samuel",
+      "David",
+      "Joseph",
+      "Carter",
+      "Owen",
+      "Wyatt",
+      "John",
+      "Jack",
+      "Luke",
+      "Asher",
+  ]
+  last_names = [
+      "Smith",
+      "Johnson",
+      "Williams",
+      "Brown",
+      "Jones",
+      "Garcia",
+      "Miller",
+      "Davis",
+      "Rodriguez",
+      "Martinez",
+      "Hernandez",
+      "Lopez",
+      "Gonzalez",
+      "Wilson",
+      "Anderson",
+      "Thomas",
+      "Taylor",
+      "Moore",
+      "Jackson",
+      "Martin",
+  ]
 
-  # শক্তিশালী পাসওয়ার্ড জেনারেশন (যেমন: K8#mP2$v9L)
-  chars = string.ascii_letters + string.digits + "@#$"
-  password = "".join(random.choices(chars, k=10))
+  fn = random.choice(first_names)
+  ln = random.choice(last_names)
+  random_num = random.randint(1024, 9989)
 
-  return email, password
+  # নামের সাথে হুবহু মিল রেখে প্রফেশনাল ইউজারনেম (যেমন: ethan.smith8492@gmail.com)
+  email = f"{fn.lower()}.{ln.lower()}{random_num}@gmail.com"
+
+  # স্ট্রং ও ইউনিক পাসওয়ার্ড তৈরি (Upper + Lower + Digit + Special Char)
+  upper = random.choice(string.ascii_uppercase)
+  lower = "".join(random.choices(string.ascii_lowercase, k=4))
+  digits = "".join(random.choices(string.digits, k=3))
+  special = random.choice("@#$%&*")
+
+  pass_list = list(upper + lower + digits + special)
+  random.shuffle(pass_list)
+  password = "".join(pass_list)
+
+  return fn, ln, email, password
 
 
 # --- DATABASE SETUP ---
@@ -389,11 +443,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
 
     await update.message.reply_text(
-        "✅ **আপনার উইথড্র রিকোয়েস্ট সফলভাবে জমা হয়েছে!**\n\n"
-        f"💰 অ্যামাউন্ট: ৳{balance:.2f}\n"
-        f"📌 মাধ্যম: {method}\n"
-        f"📬 ওয়ালেট/নম্বর: `{wallet}`\n\n"
-        "২৪ ঘণ্টার মধ্যে পেমেন্ট কমপ্লিট করে দেওয়া হবে।",
+        "⏳ **আপনার উইথড্র রিকোয়েস্টটি সফলভাবে জমা হয়েছে!**\n\n"
+        f"💰 **অ্যামাউন্ট:** ৳{balance:.2f}\n"
+        f"📌 **মাধ্যম:** {method}\n"
+        f"📬 **ওয়ালেট/নম্বর:** `{wallet}`\n\n"
+        "আপনার পেমেন্টটি বর্তমানে প্রসেসিং-এ আছে, ২৪ ঘণ্টার মধ্যে পেমেন্টটি পেয়ে"
+        " যাবেন।",
         parse_mode="Markdown",
     )
 
@@ -507,19 +562,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if gmail:
       gmail_id, email, password = gmail
+      fn = email.split(".")[0].capitalize() if "." in email else "John"
+      ln = "Smith"
     else:
-      # স্টক খালি থাকলে অটো জেনারেট করবে এবং ডাটাবেসে সেভ করবে
-      email, password = generate_auto_credentials()
+      fn, ln, auto_email, auto_pass = generate_auto_credentials()
       conn = sqlite3.connect(DB_NAME)
       cursor = conn.cursor()
       cursor.execute(
-          "INSERT INTO gmail_stock (email, password, status) VALUES (?, ?,"
-          " 'available')",
-          (email, password),
+          "INSERT INTO gmail_stock (email, password) VALUES (?, ?)",
+          (auto_email, auto_pass),
       )
       gmail_id = cursor.lastrowid
       conn.commit()
       conn.close()
+      email, password = auto_email, auto_pass
 
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
@@ -531,11 +587,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.close()
 
     task_text = (
-        "📧 **নতুন জিমেইল টাস্ক:**\n\n"
-        f"🔹 **ইমেইল:** `{email}`\n"
-        f"🔹 **পাসওয়ার্ড:** `{password}`\n\n"
-        "ধাপ ১: উপরের ইমেইল ও পাসওয়ার্ড দিয়ে নতুন অ্যাকাউন্ট তৈরি করে কাজ সম্পন্ন"
-        " করুন।\n"
+        "📧 **নতুন জিমেইল টাস্ক (প্রফেশনাল ফরম্যাট):**\n\n"
+        f"👤 **First Name:** `{fn}`\n"
+        f"👤 **Last Name:** `{ln}`\n"
+        f"🔹 **User Name:** `{email}`\n"
+        f"🔑 **Password:** `{password}`\n\n"
+        "👉 *প্রতিটি তথ্যের ওপর টাচ করলেই তা সাথে সাথে কপি হয়ে যাবে।*\n\n"
+        "ধাপ ১: জিমেইল অ্যাপ/ব্রাউজারে গিয়ে First & Last Name এবং এই ইমেইল-পাসওয়ার্ড দিয়ে অ্যাকাউন্ট তৈরি করুন।\n"
         "ধাপ ২: কাজ শেষ হলে নিচে **'✅ কাজ জমা দিন'** বাটনে চাপ দিন।"
     )
     task_keyboard = InlineKeyboardMarkup([
@@ -568,11 +626,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
   elif "কাজের নিয়ম" in text:
     rules_text = (
         "📜 **জিমেইল ক্রিয়েট করার নিয়মাবলী:**\n\n"
-        "১. দয়া করে বট থেকে জিমেইল এবং পাসওয়ার্ড নিয়ে সঠিক নিয়মে জিমেইল"
-        " একাউন্ট ক্রিয়েট করুন।\n\n"
+        "১. দয়া করে বট থেকে দেওয়া First Name, Last Name, জিমেইল এবং পাসওয়ার্ড নিয়ে সঠিক নিয়মে জিমেইল একাউন্ট ক্রিয়েট করুন।\n\n"
         "⚠️ **বিশেষ নোটিশ (অবশ্যই পালনীয়):**\n"
         "📌 **জিমেইল খোলার পরই ফোন থেকে অ্যাকাউন্টটি Log Out / Remove করে"
-        " দিবেন।** অন্যথায় পেমেন্ট পাবেন না।\n"
+        " দিবেন।** অন্যথায় পেমент পাবেন না।\n"
         "🚫 কোনো প্রকার প্রতারণামূলক কাজ করলে আইডি ব্যান করা হবে।"
     )
     await update.message.reply_text(rules_text, parse_mode="Markdown")
@@ -799,8 +856,8 @@ async def admin_action_callback(
     conn.close()
 
     await query.message.edit_text(
-        f"✅ User `{target_user_id}` এর কাজ সফলভাবে অ্যাপ্রুভ করা হয়েছে এবং ১৬ টাকা"
-        " ব্যালেন্সে যোগ হয়েছে।"
+        f"✅ User `{target_user_id}` এর কাজ সফলভাবে অ্যাপ্রুভ করা হয়েছে এবং"
+        f" {int(GMAIL_PRICE)} টাকা ব্যালেন্সে যোগ হয়েছে।"
     )
     try:
       await context.bot.send_message(
@@ -850,12 +907,15 @@ async def admin_action_callback(
         f"✅ ইউজার `{target_user_id}` এর ৳{amount} পেমেন্ট অ্যাপ্রুভ করা হয়েছে।"
     )
     try:
+      payment_success_msg = (
+          "🎉 **আপনার পেমেন্টটি করা হয়েছে!**\n\n"
+          f"💰 **অ্যামাউন্ট:** ৳{amount:.2f}\n\n"
+          "🙏 *পেমেন্টটি করতে কিছুটা দেরি করার জন্য আমরা আন্তরিকভাবে দুঃখিত।"
+          " আমাদের সাথে থাকার জন্য আপনাকে ধন্যবাদ!*"
+      )
       await context.bot.send_message(
           chat_id=target_user_id,
-          text=(
-              "🎉 **আপনার উইথড্র রিকোয়েস্ট সফলভাবে পেমেন্ট করা হয়েছে!**\n💰"
-              f" অ্যামাউন্ট: ৳{amount:.2f}"
-          ),
+          text=payment_success_msg,
           parse_mode="Markdown",
       )
     except Exception:
@@ -883,7 +943,7 @@ async def admin_action_callback(
       await context.bot.send_message(
           chat_id=target_user_id,
           text=(
-              "❌ **আপনার উইথড্র রিকোয়েস্টটি বাতিল করা হয়েছে এবং ৳{amount:.2f}"
+              f"❌ **আপনার উইথড্র রিকোয়েস্টটি বাতিল করা হয়েছে এবং ৳{amount:.2f}"
               " আপনার ব্যালেন্সে ফিরিয়ে দেওয়া হয়েছে।**"
           ),
           parse_mode="Markdown",
