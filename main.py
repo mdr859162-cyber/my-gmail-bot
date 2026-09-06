@@ -20,11 +20,13 @@ from telegram.ext import (
 )
 
 # --- YOUR CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAHcAaiv3Hj1pCmWZ8OEbTcvfqI50tfMb3c"
+# ⚠️ নিচে BotFather থেকে পাওয়া নতুন টোকেনটি বসাবেন:
+BOT_TOKEN = "আপনার_নতুন_টোকেন_এখানে_বসাবেন" 
+
 ADMIN_ID = 8422485324  # আপনার অ্যাডমিন আইডি
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubbdsaort"
 HELPLINE_USERNAME = "gmailhub_Helpline"
-MIN_WITHDRAW = 10.0  # সর্বনিম্ন উইথড্র অ্যামাউন্ট
+MIN_WITHDRAW = 100.0  # সর্বনিম্ন উইথড্র অ্যামাউন্ট (১০০ টাকা করা হয়েছে)
 
 GMAIL_PRICE = 18.0  # প্রতি জিমেইলের দাম ১৮ টাকা
 
@@ -33,7 +35,6 @@ WORK_VIDEO_LINK = ""
 
 # --- HIGH QUALITY REALISTIC CREDENTIALS GENERATOR ---
 def generate_auto_credentials():
-  # রিয়েল ও ন্যাচারাল ফার্স্ট নেম এবং লাস্ট নেম
   first_names = [
       "Ethan",
       "Oliver",
@@ -83,10 +84,8 @@ def generate_auto_credentials():
   ln = random.choice(last_names)
   random_num = random.randint(1024, 9989)
 
-  # নামের সাথে হুবহু মিল রেখে প্রফেশনাল ইউজারনেম (যেমন: ethan.smith8492@gmail.com)
   email = f"{fn.lower()}.{ln.lower()}{random_num}@gmail.com"
 
-  # স্ট্রং ও ইউনিক পাসওয়ার্ড তৈরি (Upper + Lower + Digit + Special Char)
   upper = random.choice(string.ascii_uppercase)
   lower = "".join(random.choices(string.ascii_lowercase, k=4))
   digits = "".join(random.choices(string.digits, k=3))
@@ -420,7 +419,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if balance < MIN_WITHDRAW:
       await update.message.reply_text(
           f"❌ আপনার পর্যাপ্ত ব্যালেন্স নেই। সর্বনিম্ন উইথড্র"
-          f" ৳{MIN_WITHDRAW}"
+          f" ৳{MIN_WITHDRAW:.0f}"
       )
       context.user_data.clear()
       return
@@ -545,7 +544,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔹 **বর্তমান ব্যালেন্স:** ৳{balance:.2f}\n"
         f"🔹 **আজকের জমা দেওয়া কাজ:** {today_tasks} টি\n"
         f"🔹 **সর্বমোট সফল কাজ:** {total_tasks} টি\n\n"
-        f"⚠️ *সর্বনিম্ন উইথড্র অ্যামাউন্ট: ৳{MIN_WITHDRAW}*"
+        f"⚠️ *সর্বনিম্ন উইথড্র অ্যামাউন্ট: ৳{MIN_WITHDRAW:.0f}*"
     )
 
     withdraw_keyboard = InlineKeyboardMarkup([[
@@ -626,10 +625,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
   elif "কাজের নিয়ম" in text:
     rules_text = (
         "📜 **জিমেইল ক্রিয়েট করার নিয়মাবলী:**\n\n"
-        "১. দয়া করে বট থেকে দেওয়া First Name, Last Name, জিমেইল এবং পাসওয়ার্ড নিয়ে সঠিক নিয়মে জিমেইল একাউন্ট ক্রিয়েট করুন।\n\n"
+        "১. দয়া করে বট থেকে দেওয়া First Name, Last Name, জিমেইল এবং পাসওয়ার্ড নিয়ে সঠিক নিয়মে জিমেইল একাউন্ট ক্রিয়েট করুন।\n\n"
         "⚠️ **বিশেষ নোটিশ (অবশ্যই পালনীয়):**\n"
         "📌 **জিমেইল খোলার পরই ফোন থেকে অ্যাকাউন্টটি Log Out / Remove করে"
-        " দিবেন।** অন্যথায় পেমент পাবেন না।\n"
+        " দিবেন।** অন্যথায় পেমেন্ট পাবেন না।\n"
         "🚫 কোনো প্রকার প্রতারণামূলক কাজ করলে আইডি ব্যান করা হবে।"
     )
     await update.message.reply_text(rules_text, parse_mode="Markdown")
@@ -695,7 +694,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if balance < MIN_WITHDRAW:
       await query.message.reply_text(
           f"❌ আপনার পর্যাপ্ত ব্যালেন্স নেই। উইথড্র করতে কমপক্ষে"
-          f" **৳{MIN_WITHDRAW}** প্রয়োজন। আপনার বর্তমান ব্যালেন্স: ৳{balance:.2f}"
+          f" **৳{MIN_WITHDRAW:.0f}** প্রয়োজন। আপনার বর্তমান ব্যালেন্স: ৳{balance:.2f}"
       )
       return
 
@@ -721,14 +720,23 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   elif data.startswith("withdraw_"):
     method = data.split("_")[1]
+
+    # USDT সিলেক্ট করলে দেখানো মেসেজ
+    if method == "USDT":
+      await query.message.reply_text(
+          "⚠️ **বর্তমানে বিকাশ এবং নগদের সিস্টেম চালু রয়েছে।**\n\n"
+          "পেমেন্ট নেওয়ার জন্য দয়া করে **বিকাশ** অথবা **নগদ** সিলেক্ট করুন।"
+          " পরবর্তীতে USDT চালু করা হলে আপনারা উইথড্র দিতে পারবেন।",
+          parse_mode="Markdown",
+      )
+      return
+
     context.user_data["awaiting_withdraw_wallet"] = True
     context.user_data["withdraw_method"] = method
 
     prompt_text = (
         f"📱 আপনার **{method}** নম্বরটি বা ওয়ালেট অ্যাড্রেসটি লিখে পাঠান:"
     )
-    if method == "USDT":
-      prompt_text = "🌐 আপনার **USDT (BEP20)** ওয়ালেট অ্যাড্রেসটি লিখে পাঠান:"
 
     await query.message.reply_text(prompt_text, parse_mode="Markdown")
 
