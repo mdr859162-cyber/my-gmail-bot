@@ -20,7 +20,7 @@ from telegram.ext import (
 )
 
 # --- YOUR CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAE-1gfh6SVNqzMerXAXLuB2m9AxqALKxe0"
+BOT_TOKEN = "8845301572:AAHcAaiv3Hj1pCmWZ8OEbTcvfqI50tfMb3c"
 ADMIN_ID = 8422485324  # আপনার অ্যাডমিন আইডি
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubbdsaort"
 HELPLINE_USERNAME = "gmailhub_Helpline"
