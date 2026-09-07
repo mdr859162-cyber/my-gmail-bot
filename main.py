@@ -20,7 +20,8 @@ from telegram.ext import (
 )
 
 # --- CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAHw3tnkVytIXflXtO6MM3dyVoWHr33ZSIA"
+# আপনার নতুন রিভোক করা টোকেন বসানো হয়েছে
+BOT_TOKEN = "8845301572:AAEqTUc2yfFou0p7RBO7c9Y1OBhjHlXtsNE"
 
 ADMIN_ID = 8422485324  # আপনার অ্যাডমিন আইডি
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubbdsaort"
@@ -733,7 +734,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
   elif data.startswith("submit_task_"):
     gmail_id = data.split("_")[2]
 
-    # ডাবল সাবমিট রোদ করতে স্ট্যাটাস চেক
+    # ১. ডাবল ক্লিক ঠেকাতে ডাটাবেজে লক চেক করা
     conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
@@ -744,7 +745,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
       await query.answer("⚠️ এই কাজটি ইতিমধ্যে জমা দেওয়া হয়েছে!", show_alert=True)
       return
 
-    # স্ট্যাটাস আপডেট করা যাতে একাধিক ক্লিক না ধরে
+    # ২. স্ট্যাটাস বদলে 'submitted' করা
     cursor.execute(
         "UPDATE gmail_stock SET status = 'submitted' WHERE id = ?", (gmail_id,)
     )
@@ -833,7 +834,7 @@ async def admin_action_callback(
     conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
 
-    # ১. স্ট্যাটাস চেক ও ডুওপ্লিকেট প্রতিরোধ
+    # ১. ডাবল এপ্রুভ প্রতিরোধ (একই কাজের জন্য বারবার টাকা দেওয়া বন্ধ)
     cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
     res_status = cursor.fetchone()
 
@@ -844,7 +845,7 @@ async def admin_action_callback(
       )
       return
 
-    # ২. ইউজার ডাটাবেজে নিশ্চিত করা
+    # ২. ইউজার ডাটাবেজে এন্ট্রি নিশ্চিত করা
     cursor.execute(
         "INSERT OR IGNORE INTO users (user_id, balance, today_tasks, total_tasks)"
         " VALUES (?, 0.0, 0, 0)",
@@ -856,14 +857,14 @@ async def admin_action_callback(
         "UPDATE gmail_stock SET status = 'approved' WHERE id = ?", (gmail_id,)
     )
 
-    # ৪. রেফারেল তথ্য আনা
+    # ৪. রেফারেল তথ্য উদ্ধার
     cursor.execute(
         "SELECT referred_by, is_active FROM users WHERE user_id = ?",
         (target_user_id,),
     )
     res = cursor.fetchone()
 
-    # ৫. ব্যালেন্স এবং টাস্ক আপডেট
+    # ৫. ব্যালেন্স এবং টাস্ক সরাসরি ১০০% যোগ করা
     cursor.execute(
         """
             UPDATE users 
@@ -875,7 +876,7 @@ async def admin_action_callback(
         (GMAIL_PRICE, target_user_id),
     )
 
-    # ৬. রেফারেল কমিশন (যদি থাকে)
+    # ৬. রেফারেল কমিশন বিতরণ
     if res and res[0] and res[1] == 0:
       referred_by = int(res[0])
       cursor.execute(
@@ -908,7 +909,7 @@ async def admin_action_callback(
         parse_mode="Markdown",
     )
 
-    # ইউজারকে নোটিফিকেশন
+    # ইউজারকে সঠিক নোটিফিকেশন
     try:
       await context.bot.send_message(
           chat_id=target_user_id,
@@ -1030,7 +1031,7 @@ def main():
       MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
   )
 
-  print("Bot is successfully running...")
+  print("Bot is successfully running with new token...")
   app.run_polling()
 
 
