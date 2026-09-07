@@ -20,16 +20,14 @@ from telegram.ext import (
 )
 
 # --- CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAHw3tnkVytIXflXtO6MM3dyVoWHr33ZSIA"
+BOT_TOKEN = "আপনার_টোকেন_এখানে_দিন"
 
 ADMIN_ID = 8422485324  # আপনার অ্যাডমিন আইডি
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubbdsaort"
 HELPLINE_USERNAME = "gmailhub_Helpline"
 
-# 👉 চেঞ্জ ১: সর্বনিম্ন উইথড্র ১০০ টাকা
 MIN_WITHDRAW = 100.0
-
-GMAIL_PRICE = 18.0  # প্রতি জিমেইলের দাম ১৮ টাকা
+GMAIL_PRICE = 18.0
 WORK_VIDEO_LINK = ""
 
 
@@ -103,7 +101,6 @@ DB_NAME = "gmail_bot_v2.db"
 
 
 def init_db():
-  # 👉 চেঞ্জ ৩: timeout=10 দেওয়া যাতে ডাটাবেজ লক না হয়ে জিমেইল ডুপ্লিকেট না আসে
   conn = sqlite3.connect(DB_NAME, timeout=10)
   cursor = conn.cursor()
 
@@ -405,7 +402,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
   text = update.message.text.strip()
   user_id = update.effective_user.id
 
-  # উইথড্র প্রসেস
   if context.user_data.get("awaiting_withdraw_wallet"):
     method = context.user_data.get("withdraw_method")
     wallet = text
@@ -481,7 +477,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
       pass
     return
 
-  # অ্যাডমিন জিমেইল আপলোড
   if user_id == ADMIN_ID and (
       "@gmail.com" in text or text.startswith("/bulkadd")
   ):
@@ -527,7 +522,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return
 
-  # ইউজার মেনু
   add_user(user_id)
   user = get_user(user_id)
 
@@ -669,7 +663,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🆘 **এডমিন হেল্পলাইন:**\n\n"
         "যে কোনো প্রয়োজনে বা সমস্যার কারণে আমাদের এডমিনের সঙ্গে যোগাযোগ"
-        " করুন।\n\n"
+        " করুন。\n\n"
         "⚠️ **বিশেষ নোটিশ:** অযথা কেউ মেসেজ দিবেন না।"
     )
     await update.message.reply_text(
@@ -718,7 +712,6 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
   elif data.startswith("withdraw_"):
     method = data.split("_")[1]
 
-    # 👉 চেঞ্জ ২: USDT সিলেক্ট করলে নোটিশ দেওয়া
     if method == "USDT":
       await query.message.reply_text(
           "⚠️ **currently bkash and nagad system is open.**\n\n"
@@ -739,9 +732,25 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   elif data.startswith("submit_task_"):
     gmail_id = data.split("_")[2]
+    
+    # ডাবল সাবমিট রোধ করতে স্ট্যাটাস চেক করা
+    conn = sqlite3.connect(DB_NAME, timeout=10)
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
+    res = cursor.fetchone()
+    
+    if not res or res[0] != 'used':
+      conn.close()
+      await query.answer("এই কাজটি ইতিমধ্যে জমা দেওয়া হয়েছে!", show_alert=True)
+      return
+
+    # স্ট্যাটাস পেন্ডিং বা সাবমিটেড আপডেট করা যাতে ডাবল ক্লিক না ধরে
+    cursor.execute("UPDATE gmail_stock SET status = 'submitted' WHERE id = ?", (gmail_id,))
+    conn.commit()
+    conn.close()
+
     gmail_info = get_gmail_by_id(gmail_id)
 
-    # 🔒 সিকিউরিটি: ইউজার জমা দিলেই অটো ব্যালেন্স যোগ হবে না, অ্যাডমিন চেক করার পর হবে
     await query.message.edit_text(
         "📥 **আপনার কাজ সফলভাবে জমা হয়েছে!**\n\n"
         f"আপনার জিমেইলের **{int(GMAIL_PRICE)} টাকা** ২৪ ঘন্টার মধ্যে পেয়ে যাবেন"
@@ -821,6 +830,15 @@ async def admin_action_callback(
 
     conn = sqlite3.connect(DB_NAME, timeout=10)
     cursor = conn.cursor()
+    
+    # ডাবল এপ্রুভ প্রতিরোধ
+    cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
+    res_status = cursor.fetchone()
+    if not res_status or res_status[0] == 'approved':
+      conn.close()
+      await query.answer("এই কাজটি ইতিমধ্যে অ্যাপ্রুভ করা হয়েছে!", show_alert=True)
+      return
+
     cursor.execute(
         "UPDATE gmail_stock SET status = 'approved' WHERE id = ?", (gmail_id,)
     )
@@ -830,7 +848,6 @@ async def admin_action_callback(
     )
     res = cursor.fetchone()
 
-    # 🔒 অ্যাডমিন 'Approve' বাটনে ক্লিক করলেই কেবল ব্যালেন্স যোগ হবে
     cursor.execute(
         "UPDATE users SET balance = balance + ?, today_tasks = today_tasks +"
         " 1, total_tasks = total_tasks + 1 WHERE user_id = ?",
@@ -963,14 +980,12 @@ async def admin_action_callback(
 def main():
   app = ApplicationBuilder().token(BOT_TOKEN).build()
 
-  # Commands
   app.add_handler(CommandHandler("myid", myid_command))
   app.add_handler(CommandHandler("start", start))
   app.add_handler(CommandHandler("cleargmail", clear_gmail_command))
   app.add_handler(CommandHandler("stock", stock_status_command))
   app.add_handler(CommandHandler("getused", get_used_gmails))
 
-  # Callbacks & Messages
   app.add_handler(
       CallbackQueryHandler(
           check_join_callback, pattern="^(check_join|show_main_menu)$"
