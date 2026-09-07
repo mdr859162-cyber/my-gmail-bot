@@ -20,7 +20,6 @@ from telegram.ext import (
 )
 
 # --- CONFIGURATION DATA ---
-# আপনার নতুন রিভোক করা টোকেন বসানো হয়েছে
 BOT_TOKEN = "8845301572:AAEqTUc2yfFou0p7RBO7c9Y1OBhjHlXtsNE"
 
 ADMIN_ID = 8422485324  # আপনার অ্যাডমিন আইডি
@@ -29,7 +28,8 @@ HELPLINE_USERNAME = "gmailhub_Helpline"
 
 MIN_WITHDRAW = 100.0
 GMAIL_PRICE = 18.0
-WORK_VIDEO_LINK = ""
+# আপনার কাজের ভিডিও লিংক যুক্ত করা হয়েছে
+WORK_VIDEO_LINK = "https://t.me/gmailhubbdsaort/21"
 
 
 # --- HIGH QUALITY REALISTIC CREDENTIALS GENERATOR ---
@@ -340,24 +340,29 @@ async def stock_status_command(
   available = cursor.fetchone()[0]
 
   cursor.execute(
-      "SELECT COUNT(*) FROM gmail_stock WHERE status = 'used' OR status ="
-      " 'approved' OR status = 'submitted'"
+      "SELECT COUNT(*) FROM gmail_stock WHERE status = 'approved'"
   )
-  used = cursor.fetchone()[0]
+  approved = cursor.fetchone()[0]
 
-  total = available + used
+  cursor.execute(
+      "SELECT COUNT(*) FROM gmail_stock WHERE status = 'submitted' OR status ="
+      " 'used'"
+  )
+  pending = cursor.fetchone()[0]
+
   conn.close()
 
   await update.message.reply_text(
       f"📦 **জিমেইল স্টক এর বিস্তারিত রিপোর্ট:**\n\n"
-      f"🔹 **মোট আপলোড করা জিমেইল:** `{total}` টি\n"
-      f"🟢 **বর্তমানে এভেলেবল (খালি):** `{available}` টি\n"
-      f"🔴 **ইউজাররা কাজ করেছে (ব্যবহৃত):** `{used}` টি\n\n"
-      f"💡 *ব্যবহৃত জিমেইল ডাউনলোড করতে লিখুন:* `/getused`",
+      f"🟢 **বর্তমানে খালি স্টক:** `{available}` টি\n"
+      f"🟡 **প্রসেসিং/পেন্ডিং কাজ:** `{pending}` টি\n"
+      f"✅ **ডাউনলোডের জন্য রেডি (অ্যাপ্রুভড):** `{approved}` টি\n\n"
+      f"💡 *ডাউনলোড করতে লিখুন:* `/getused`",
       parse_mode="Markdown",
   )
 
 
+# --- AUTO-DELETE AFTER DOWNLOAD SYSTEM ---
 async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
   user_id = update.effective_user.id
   if user_id != ADMIN_ID:
@@ -366,36 +371,51 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
+
+  # শুধুমাত্র অ্যাপ্রুভ হওয়া জিমেইল ডাউনলোড হবে
   cursor.execute(
-      "SELECT email, password, used_by FROM gmail_stock WHERE status = 'used'"
-      " OR status = 'approved' OR status = 'submitted'"
+      "SELECT id, email, password, used_by FROM gmail_stock WHERE status ="
+      " 'approved'"
   )
   rows = cursor.fetchall()
-  conn.close()
 
   if not rows:
+    conn.close()
     await update.message.reply_text(
-        "⚠️ **কোনো ব্যবহৃত জিমেইল পাওয়া যায়নি!**"
+        "⚠️ **ডাউনলোড করার মতো কোনো অ্যাপ্রুভড জিমেইল পাওয়া যায়নি!**"
     )
     return
 
-  file_content = "=== USER COMPLETED GMAILS ===\n\n"
+  file_content = "=== APPROVED GMAILS SHEET ===\n\n"
+  downloaded_ids = []
+
   for idx, row in enumerate(rows, 1):
-    email, password, used_by = row
+    g_id, email, password, used_by = row
     file_content += (
         f"{idx}. Email: {email} | Password: {password} | User ID: {used_by}\n"
     )
+    downloaded_ids.append(g_id)
 
   file_bytes = io.BytesIO(file_content.encode("utf-8"))
-  file_bytes.name = "used_gmails.txt"
+  file_bytes.name = f"approved_gmails_{len(rows)}.txt"
 
+  # ফাইলটি সেন্ড করা
   await update.message.reply_document(
       document=file_bytes,
       caption=(
-          f"📂 **ইউজারদের সম্পন্ন করা {len(rows)} টি জিমেইল এর ফাইল।**"
+          f"📂 **আপনার {len(rows)} টি অ্যাপ্রুভ করা জিমেইলের ফাইল।**\n\n"
+          "⚡ *এই ফাইলটি ডেলিভারি হওয়ায় উক্ত জিমেইলগুলো বট থেকে সফলভাবে ক্লিয়ার/ডিলিট"
+          " করে দেওয়া হয়েছে।*"
       ),
       parse_mode="Markdown",
   )
+
+  # ফাইল সেন্ড সফল হলে ডাটাবেজ থেকে সেগুলোকে মুছে দেওয়া
+  cursor.executemany(
+      "DELETE FROM gmail_stock WHERE id = ?", [(gid,) for gid in downloaded_ids]
+  )
+  conn.commit()
+  conn.close()
 
 
 # --- MAIN MESSAGE HANDLER ---
@@ -640,11 +660,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if WORK_VIDEO_LINK.strip():
       video_keyboard = InlineKeyboardMarkup([[
           InlineKeyboardButton(
-              "▶️ ভিডিওটি দেখতে এখানে ক্লিক করুন", url=WORK_VIDEO_LINK
+              "▶️ কাজের ভিডিও দেখুন", url=WORK_VIDEO_LINK
           )
       ]])
       await update.message.reply_text(
-          "🎥 **আপনি কি কাজে নতুন?**\n\nনিচের লিংকে ক্লিক করে কাজের ভিডিও দেখে নিন:",
+          "🎥 **আপনি কি কাজে নতুন?**\n\n"
+          "নিচের বাটনটিতে ক্লিক করে কাজের সম্পূর্ণ ভিডিওটি দেখে নিন:",
           parse_mode="Markdown",
           reply_markup=video_keyboard,
       )
@@ -734,7 +755,6 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
   elif data.startswith("submit_task_"):
     gmail_id = data.split("_")[2]
 
-    # ১. ডাবল ক্লিক ঠেকাতে ডাটাবেজে লক চেক করা
     conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
@@ -745,7 +765,6 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
       await query.answer("⚠️ এই কাজটি ইতিমধ্যে জমা দেওয়া হয়েছে!", show_alert=True)
       return
 
-    # ২. স্ট্যাটাস বদলে 'submitted' করা
     cursor.execute(
         "UPDATE gmail_stock SET status = 'submitted' WHERE id = ?", (gmail_id,)
     )
@@ -834,7 +853,6 @@ async def admin_action_callback(
     conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
 
-    # ১. ডাবল এপ্রুভ প্রতিরোধ (একই কাজের জন্য বারবার টাকা দেওয়া বন্ধ)
     cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
     res_status = cursor.fetchone()
 
@@ -845,26 +863,22 @@ async def admin_action_callback(
       )
       return
 
-    # ২. ইউজার ডাটাবেজে এন্ট্রি নিশ্চিত করা
     cursor.execute(
         "INSERT OR IGNORE INTO users (user_id, balance, today_tasks, total_tasks)"
         " VALUES (?, 0.0, 0, 0)",
         (target_user_id,),
     )
 
-    # ৩. জিমেইল স্ট্যাটাস আপডেট
     cursor.execute(
         "UPDATE gmail_stock SET status = 'approved' WHERE id = ?", (gmail_id,)
     )
 
-    # ৪. রেফারেল তথ্য উদ্ধার
     cursor.execute(
         "SELECT referred_by, is_active FROM users WHERE user_id = ?",
         (target_user_id,),
     )
     res = cursor.fetchone()
 
-    # ৫. ব্যালেন্স এবং টাস্ক সরাসরি ১০০% যোগ করা
     cursor.execute(
         """
             UPDATE users 
@@ -876,7 +890,6 @@ async def admin_action_callback(
         (GMAIL_PRICE, target_user_id),
     )
 
-    # ৬. রেফারেল কমিশন বিতরণ
     if res and res[0] and res[1] == 0:
       referred_by = int(res[0])
       cursor.execute(
@@ -902,14 +915,12 @@ async def admin_action_callback(
     conn.commit()
     conn.close()
 
-    # অ্যাডমিন মেসেজ আপডেট
     await query.message.edit_text(
         f"✅ **সফল হয়েছে!**\n\n👤 ইউজার আইডি: `{target_user_id}`\n💰 ব্যালেন্সে"
         f" **{int(GMAIL_PRICE)} টাকা** সফলভাবে যোগ করা হয়েছে।",
         parse_mode="Markdown",
     )
 
-    # ইউজারকে সঠিক নোটিফিকেশন
     try:
       await context.bot.send_message(
           chat_id=target_user_id,
@@ -1031,7 +1042,7 @@ def main():
       MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
   )
 
-  print("Bot is successfully running with new token...")
+  print("Bot is successfully running...")
   app.run_polling()
 
 
