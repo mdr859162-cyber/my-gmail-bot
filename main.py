@@ -101,7 +101,7 @@ DB_NAME = "gmail_bot_v2.db"
 
 
 def init_db():
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
 
   cursor.execute("""
@@ -153,7 +153,7 @@ init_db()
 
 # --- HELPER FUNCTIONS ---
 def get_user(user_id):
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
   cursor.execute(
       "SELECT user_id, balance, today_tasks, total_tasks, referred_by,"
@@ -166,7 +166,7 @@ def get_user(user_id):
 
 
 def add_user(user_id, referred_by=None):
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
   cursor.execute(
       "INSERT OR IGNORE INTO users (user_id, balance, today_tasks, total_tasks,"
@@ -179,7 +179,7 @@ def add_user(user_id, referred_by=None):
 
 
 def get_available_gmail():
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
   cursor.execute(
       "SELECT id, email, password FROM gmail_stock WHERE status = 'available'"
@@ -191,7 +191,7 @@ def get_available_gmail():
 
 
 def get_gmail_by_id(gmail_id):
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
   cursor.execute(
       "SELECT email, password FROM gmail_stock WHERE id = ?", (gmail_id,)
@@ -311,7 +311,7 @@ async def clear_gmail_command(
     await update.message.reply_text("⛔ আপনার অ্যাডমিন অ্যাক্সেস নেই।")
     return
 
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
   cursor.execute("DELETE FROM gmail_stock")
   conn.commit()
@@ -331,7 +331,7 @@ async def stock_status_command(
     await update.message.reply_text("⛔ আপনার অ্যাডমিন অ্যাক্সেস নেই।")
     return
 
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
   cursor.execute(
       "SELECT COUNT(*) FROM gmail_stock WHERE status = 'available'"
@@ -340,7 +340,7 @@ async def stock_status_command(
 
   cursor.execute(
       "SELECT COUNT(*) FROM gmail_stock WHERE status = 'used' OR status ="
-      " 'approved'"
+      " 'approved' OR status = 'submitted'"
   )
   used = cursor.fetchone()[0]
 
@@ -363,11 +363,11 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⛔ আপনার অ্যাডমিন অ্যাক্সেস নেই।")
     return
 
-  conn = sqlite3.connect(DB_NAME, timeout=10)
+  conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
   cursor.execute(
       "SELECT email, password, used_by FROM gmail_stock WHERE status = 'used'"
-      " OR status = 'approved'"
+      " OR status = 'approved' OR status = 'submitted'"
   )
   rows = cursor.fetchall()
   conn.close()
@@ -407,7 +407,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     wallet = text
 
     user = get_user(user_id)
-    balance = user[1]
+    balance = user[1] if user else 0.0
 
     if balance < MIN_WITHDRAW:
       await update.message.reply_text(
@@ -417,7 +417,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
       context.user_data.clear()
       return
 
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE users SET balance = balance - ? WHERE user_id = ?",
@@ -486,7 +486,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     added_count = 0
     failed_count = 0
 
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
 
     i = 0
@@ -526,9 +526,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
   user = get_user(user_id)
 
   if "ব্যালেন্স & উইথড্র" in text or "ব্যালেন্স" in text:
-    balance = user[1]
-    today_tasks = user[2]
-    total_tasks = user[3]
+    balance = user[1] if user else 0.0
+    today_tasks = user[2] if user else 0
+    total_tasks = user[3] if user else 0
 
     balance_text = (
         "💳 **আপনার অ্যাকাউন্ট ব্যালেন্স বিবরণী:**\n\n"
@@ -556,7 +556,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
       ln = "Smith"
     else:
       fn, ln, auto_email, auto_pass = generate_auto_credentials()
-      conn = sqlite3.connect(DB_NAME, timeout=10)
+      conn = sqlite3.connect(DB_NAME, timeout=15)
       cursor = conn.cursor()
       cursor.execute(
           "INSERT INTO gmail_stock (email, password) VALUES (?, ?)",
@@ -567,7 +567,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
       conn.close()
       email, password = auto_email, auto_pass
 
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE gmail_stock SET status = 'used', used_by = ? WHERE id = ?",
@@ -603,8 +603,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
   elif "কাজের রিপোর্ট" in text:
-    today_tasks = user[2]
-    total_tasks = user[3]
+    today_tasks = user[2] if user else 0
+    total_tasks = user[3] if user else 0
     report_text = (
         "📊 **আপনার কাজের নিখুঁত রিপোর্ট:**\n\n"
         f"📅 **আজকের মোট কাজ:** {today_tasks} টি\n"
@@ -680,7 +680,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   if data == "request_withdraw":
     user = get_user(user_id)
-    balance = user[1]
+    balance = user[1] if user else 0.0
 
     if balance < MIN_WITHDRAW:
       await query.message.reply_text(
@@ -732,20 +732,22 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   elif data.startswith("submit_task_"):
     gmail_id = data.split("_")[2]
-    
-    # ডাবল সাবমিট রোধ করতে স্ট্যাটাস চেক করা
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+
+    # ডাবল সাবমিট রোদ করতে স্ট্যাটাস চেক
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
     res = cursor.fetchone()
-    
-    if not res or res[0] != 'used':
+
+    if not res or res[0] != "used":
       conn.close()
-      await query.answer("এই কাজটি ইতিমধ্যে জমা দেওয়া হয়েছে!", show_alert=True)
+      await query.answer("⚠️ এই কাজটি ইতিমধ্যে জমা দেওয়া হয়েছে!", show_alert=True)
       return
 
-    # স্ট্যাটাস পেন্ডিং বা সাবমিটেড আপডেট করা যাতে ডাবল ক্লিক না ধরে
-    cursor.execute("UPDATE gmail_stock SET status = 'submitted' WHERE id = ?", (gmail_id,))
+    # স্ট্যাটাস আপডেট করা যাতে একাধিক ক্লিক না ধরে
+    cursor.execute(
+        "UPDATE gmail_stock SET status = 'submitted' WHERE id = ?", (gmail_id,)
+    )
     conn.commit()
     conn.close()
 
@@ -801,7 +803,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   elif data.startswith("cancel_task_"):
     gmail_id = data.split("_")[2]
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE gmail_stock SET status = 'available', used_by = NULL WHERE id ="
@@ -828,34 +830,54 @@ async def admin_action_callback(
     target_user_id = int(parts[1])
     gmail_id = int(parts[2])
 
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
-    
-    # ডাবল এপ্রুভ প্রতিরোধ
+
+    # ১. স্ট্যাটাস চেক ও ডুওপ্লিকেট প্রতিরোধ
     cursor.execute("SELECT status FROM gmail_stock WHERE id = ?", (gmail_id,))
     res_status = cursor.fetchone()
-    if not res_status or res_status[0] == 'approved':
+
+    if not res_status or res_status[0] == "approved":
       conn.close()
-      await query.answer("এই কাজটি ইতিমধ্যে অ্যাপ্রুভ করা হয়েছে!", show_alert=True)
+      await query.answer(
+          "⚠️ এই কাজটি ইতিমধ্যে অ্যাপ্রুভ করা হয়েছে!", show_alert=True
+      )
       return
 
+    # ২. ইউজার ডাটাবেজে নিশ্চিত করা
+    cursor.execute(
+        "INSERT OR IGNORE INTO users (user_id, balance, today_tasks, total_tasks)"
+        " VALUES (?, 0.0, 0, 0)",
+        (target_user_id,),
+    )
+
+    # ৩. জিমেইল স্ট্যাটাস আপডেট
     cursor.execute(
         "UPDATE gmail_stock SET status = 'approved' WHERE id = ?", (gmail_id,)
     )
+
+    # ৪. রেফারেল তথ্য আনা
     cursor.execute(
         "SELECT referred_by, is_active FROM users WHERE user_id = ?",
         (target_user_id,),
     )
     res = cursor.fetchone()
 
+    # ৫. ব্যালেন্স এবং টাস্ক আপডেট
     cursor.execute(
-        "UPDATE users SET balance = balance + ?, today_tasks = today_tasks +"
-        " 1, total_tasks = total_tasks + 1 WHERE user_id = ?",
+        """
+            UPDATE users 
+            SET balance = balance + ?, 
+                today_tasks = today_tasks + 1, 
+                total_tasks = total_tasks + 1 
+            WHERE user_id = ?
+        """,
         (GMAIL_PRICE, target_user_id),
     )
 
+    # ৬. রেফারেল কমিশন (যদি থাকে)
     if res and res[0] and res[1] == 0:
-      referred_by = res[0]
+      referred_by = int(res[0])
       cursor.execute(
           "UPDATE users SET is_active = 1 WHERE user_id = ?", (target_user_id,)
       )
@@ -868,8 +890,8 @@ async def admin_action_callback(
         await context.bot.send_message(
             chat_id=referred_by,
             text=(
-                "🎉 **আপনার রেফারকৃত ইউজার কাজ শেষ করায় আপনার একাউন্টে ১০ টাকা"
-                " কমিশন যোগ হয়েছে!**"
+                "🎉 **আপনার রেফারকৃত ইউজার প্রথম কাজ শেষ করায় আপনার একাউন্টে ১০ টাকা"
+                " বোনাস যোগ হয়েছে!**"
             ),
             parse_mode="Markdown",
         )
@@ -879,16 +901,20 @@ async def admin_action_callback(
     conn.commit()
     conn.close()
 
+    # অ্যাডমিন মেসেজ আপডেট
     await query.message.edit_text(
-        f"✅ User `{target_user_id}` এর কাজ সফলভাবে অ্যাপ্রুভ করা হয়েছে এবং"
-        f" {int(GMAIL_PRICE)} টাকা ব্যালেন্সে যোগ হয়েছে।"
+        f"✅ **সফল হয়েছে!**\n\n👤 ইউজার আইডি: `{target_user_id}`\n💰 ব্যালেন্সে"
+        f" **{int(GMAIL_PRICE)} টাকা** সফলভাবে যোগ করা হয়েছে।",
+        parse_mode="Markdown",
     )
+
+    # ইউজারকে নোটিফিকেশন
     try:
       await context.bot.send_message(
           chat_id=target_user_id,
           text=(
               "🎉 **আপনার জমা দেওয়া জিমেইলটি অ্যাপ্রুভ করা হয়েছে!**\nআপনার"
-              f" ব্যালেন্সে {int(GMAIL_PRICE)} টাকা যোগ করা হয়েছে।"
+              f" ব্যালেন্সে **{int(GMAIL_PRICE)} টাকা** যোগ করা হয়েছে।"
           ),
           parse_mode="Markdown",
       )
@@ -900,7 +926,7 @@ async def admin_action_callback(
     target_user_id = int(parts[1])
     gmail_id = int(parts[2])
 
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE gmail_stock SET status = 'available', used_by = NULL WHERE id ="
@@ -911,7 +937,8 @@ async def admin_action_callback(
     conn.close()
 
     await query.message.edit_text(
-        f"❌ User `{target_user_id}` এর কাজ রিজেক্ট করা হয়েছে।"
+        f"❌ ইউজার `{target_user_id}` এর কাজটি বাতিল করা হয়েছে।",
+        parse_mode="Markdown",
     )
     try:
       await context.bot.send_message(
@@ -928,18 +955,13 @@ async def admin_action_callback(
     amount = float(parts[4])
 
     await query.message.edit_text(
-        f"✅ ইউজার `{target_user_id}` এর ৳{amount} পেমেন্ট অ্যাপ্রুভ করা হয়েছে।"
+        f"✅ ইউজার `{target_user_id}` এর ৳{amount} পেমেন্ট অ্যাপ্রুভ করা হয়েছে।",
+        parse_mode="Markdown",
     )
     try:
-      payment_success_msg = (
-          "🎉 **আপনার পেমেন্টটি করা হয়েছে!**\n\n"
-          f"💰 **অ্যামাউন্ট:** ৳{amount:.2f}\n\n"
-          "🙏 *পেমেন্টটি করতে কিছুটা দেরি করার জন্য আমরা আন্তরিকভাবে দুঃখিত।"
-          " আমাদের সাথে থাকার জন্য আপনাকে ধন্যবাদ!*"
-      )
       await context.bot.send_message(
           chat_id=target_user_id,
-          text=payment_success_msg,
+          text=f"🎉 **আপনার ৳{amount:.2f} পেমেন্টটি সফলভাবে সম্পন্ন হয়েছে!**",
           parse_mode="Markdown",
       )
     except Exception:
@@ -950,7 +972,7 @@ async def admin_action_callback(
     target_user_id = int(parts[3])
     amount = float(parts[4])
 
-    conn = sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE users SET balance = balance + ? WHERE user_id = ?",
@@ -960,15 +982,16 @@ async def admin_action_callback(
     conn.close()
 
     await query.message.edit_text(
-        f"❌ ইউজার `{target_user_id}` এর উইথড্র রিজেক্ট করা হয়েছে এবং ব্যালেন্স"
-        " রিফান্ড করা হয়েছে।"
+        f"❌ ইউজার `{target_user_id}` এর উইথড্র রিজেক্ট করে টাকা ব্যাক দেওয়া"
+        " হয়েছে।",
+        parse_mode="Markdown",
     )
     try:
       await context.bot.send_message(
           chat_id=target_user_id,
           text=(
-              f"❌ **আপনার উইথড্র রিকোয়েস্টটি বাতিল করা হয়েছে এবং ৳{amount:.2f}"
-              " আপনার ব্যালেন্সে ফিরিয়ে দেওয়া হয়েছে।**"
+              f"❌ **আপনার উইথড্র বাতিল করা হয়েছে এবং ৳{amount:.2f} ব্যালেন্সে"
+              " ফেরত দেওয়া হয়েছে।**"
           ),
           parse_mode="Markdown",
       )
@@ -999,7 +1022,8 @@ def main():
   )
   app.add_handler(
       CallbackQueryHandler(
-          admin_action_callback, pattern="^(approve_|reject_|w_approve_|w_reject_)"
+          admin_action_callback,
+          pattern="^(approve_|reject_|w_approve_|w_reject_)",
       )
   )
   app.add_handler(
