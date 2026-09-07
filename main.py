@@ -20,7 +20,7 @@ from telegram.ext import (
 )
 
 # --- CONFIGURATION DATA ---
-BOT_TOKEN = "আপনার_নতুন_টোকেন_এখানে_বসাবেন"
+BOT_TOKEN = "8845301572:AAHw3tnkVytIXflXtO6MM3dyVoWHr33ZSIA"
 
 ADMIN_ID = 8422485324  # আপনার অ্যাডমিন আইডি
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubbdsaort"
