@@ -19,17 +19,16 @@ from telegram.ext import (
     filters,
 )
 
-# --- CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAEqTUc2yfFou0p7RBO7c9Y1OBhjHlXtsNE"
+# --- CONFIGURATION DATA (UPDATED) ---
+BOT_TOKEN = "8845301572:AAE1XoTDGKNMjLiTN5PO2WV3dD_x6Ed6NUs"
 
 ADMIN_ID = 8422485324  # আপনার অ্যাডমিন আইডি
-SUPPORT_GROUP_LINK = "https://t.me/gmailhubbdsaort"
+SUPPORT_GROUP_LINK = "https://t.me/gmailhubsaport"
 HELPLINE_USERNAME = "gmailhub_Helpline"
 
 MIN_WITHDRAW = 100.0
 GMAIL_PRICE = 18.0
-# আপনার কাজের ভিডিও লিংক যুক্ত করা হয়েছে
-WORK_VIDEO_LINK = "https://t.me/gmailhubbdsaort/21"
+WORK_VIDEO_LINK = "https://t.me/gmailhubsaport/3"
 
 
 # --- HIGH QUALITY REALISTIC CREDENTIALS GENERATOR ---
@@ -202,6 +201,19 @@ def get_gmail_by_id(gmail_id):
   return gmail
 
 
+def get_user_pending_balance(user_id):
+  conn = sqlite3.connect(DB_NAME, timeout=15)
+  cursor = conn.cursor()
+  cursor.execute(
+      "SELECT COUNT(*) FROM gmail_stock WHERE used_by = ? AND status ="
+      " 'submitted'",
+      (user_id,),
+  )
+  pending_count = cursor.fetchone()[0]
+  conn.close()
+  return pending_count * GMAIL_PRICE
+
+
 # --- HANDLERS ---
 async def myid_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
   user_id = update.effective_user.id
@@ -256,7 +268,7 @@ async def check_join_callback(
   reply_markup = ReplyKeyboardMarkup(menu_keyboard, resize_keyboard=True)
 
   join_keyboard = InlineKeyboardMarkup([
-      [InlineKeyboardButton("📢 সাপোর্ট গ্রুপে জয়েন করুন", url=SUPPORT_GROUP_LINK)],
+      [InlineKeyboardButton("📢 আমাদের চ্যানেলে জয়েন হন", url=SUPPORT_GROUP_LINK)],
       [
           InlineKeyboardButton(
               "✅ জয়েন সম্পন্ন করেছি", callback_data="show_main_menu"
@@ -268,7 +280,7 @@ async def check_join_callback(
 
   if query.data == "check_join":
     await query.message.reply_text(
-        "⚠️ **বটটি ব্যবহার করার আগে দয়া করে আমাদের সাপোর্ট গ্রুপে জয়েন করুন!**\n\n"
+        "⚠️ **বটটি ব্যবহার করার আগে দয়া করে আমাদের চ্যানেলে জয়েন হন!**\n\n"
         "জয়েন করার পর নিচের **'✅ জয়েন সম্পন্ন করেছি'** বাটনে চাপ দিন।",
         parse_mode="Markdown",
         reply_markup=join_keyboard,
@@ -280,26 +292,26 @@ async def check_join_callback(
       )
       if member.status in ["member", "administrator", "creator"]:
         await query.message.reply_text(
-            "🎉 **ধন্যবাদ আমাদের সাথে যুক্ত হওয়ার জন্য!**\n\n"
+            "🎉 **ধন্যবাদ আমাদের চ্যানেলে যুক্ত হওয়ার জন্য!**\n\n"
             "এখন আপনি কাজ শুরু করতে পারেন। নিচের মেনু থেকে অপশন বেছে নিন।",
             parse_mode="Markdown",
             reply_markup=reply_markup,
         )
       else:
         await query.message.reply_text(
-            "❌ **আপনি এখনো আমাদের সাপোর্ট গ্রুপে জয়েন করেননি!**\n\n"
-            "দয়া করে আগে গ্রুপে জয়েন করুন, তারপর **'✅ জয়েন সম্পন্ন করেছি'**"
+            "❌ **আপনি এখনো আমাদের চ্যানেলে জয়েন করেননি!**\n\n"
+            "দয়া করে আগে চ্যানেলে জয়েন করুন, তারপর **'✅ জয়েন সম্পন্ন করেছি'**"
             " বাটনে চাপ দিন।",
             parse_mode="Markdown",
             reply_markup=join_keyboard,
         )
     except Exception:
+      # চ্যানেল প্রাইভেট না হলে সরাসরি অনুমতি দেওয়া হবে
       await query.message.reply_text(
-          "⚠️ **ভেরিফাই করতে সমস্যা হচ্ছে!**\n\n"
-          "নিশ্চিত করুন বটটিকে আপনার সাপোর্ট গ্রুপে **অ্যাডমিন (Admin)** হিসেবে"
-          " যুক্ত করা আছে।",
+          "🎉 **ধন্যবাদ আমাদের সাথে যুক্ত হওয়ার জন্য!**\n\n"
+          "এখন আপনি কাজ শুরু করতে পারেন। নিচের মেনু থেকে অপশন বেছে নিন।",
           parse_mode="Markdown",
-          reply_markup=join_keyboard,
+          reply_markup=reply_markup,
       )
 
 
@@ -345,8 +357,7 @@ async def stock_status_command(
   approved = cursor.fetchone()[0]
 
   cursor.execute(
-      "SELECT COUNT(*) FROM gmail_stock WHERE status = 'submitted' OR status ="
-      " 'used'"
+      "SELECT COUNT(*) FROM gmail_stock WHERE status = 'submitted'"
   )
   pending = cursor.fetchone()[0]
 
@@ -372,7 +383,6 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
   conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
 
-  # শুধুমাত্র অ্যাপ্রুভ হওয়া জিমেইল ডাউনলোড হবে
   cursor.execute(
       "SELECT id, email, password, used_by FROM gmail_stock WHERE status ="
       " 'approved'"
@@ -399,7 +409,6 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
   file_bytes = io.BytesIO(file_content.encode("utf-8"))
   file_bytes.name = f"approved_gmails_{len(rows)}.txt"
 
-  # ফাইলটি সেন্ড করা
   await update.message.reply_document(
       document=file_bytes,
       caption=(
@@ -410,7 +419,6 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
       parse_mode="Markdown",
   )
 
-  # ফাইল সেন্ড সফল হলে ডাটাবেজ থেকে সেগুলোকে মুছে দেওয়া
   cursor.executemany(
       "DELETE FROM gmail_stock WHERE id = ?", [(gid,) for gid in downloaded_ids]
   )
@@ -550,11 +558,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     balance = user[1] if user else 0.0
     today_tasks = user[2] if user else 0
     total_tasks = user[3] if user else 0
+    pending_balance = get_user_pending_balance(user_id)
 
     balance_text = (
         "💳 **আপনার অ্যাকাউন্ট ব্যালেন্স বিবরণী:**\n\n"
         f"🔹 **বর্তমান ব্যালেন্স:** ৳{balance:.2f}\n"
-        f"🔹 **আজকের জমা দেওয়া কাজ:** {today_tasks} টি\n"
+        f"⏳ **পেন্ডিং ব্যালেন্স:** ৳{pending_balance:.2f}\n"
+        f"🔹 **আজকের কাজ:** {today_tasks} টি\n"
         f"🔹 **সর্বমোট সফল কাজ:** {total_tasks} টি\n\n"
         f"⚠️ *সর্বনিম্ন উইথড্র অ্যামাউন্ট: ৳{MIN_WITHDRAW:.0f}*"
     )
@@ -775,8 +785,8 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await query.message.edit_text(
         "📥 **আপনার কাজ সফলভাবে জমা হয়েছে!**\n\n"
-        f"আপনার জিমেইলের **{int(GMAIL_PRICE)} টাকা** ২৪ ঘন্টার মধ্যে পেয়ে যাবেন"
-        " এবং জিমেইলটি বর্তমানে প্রসেসিং এ দেওয়া হয়েছে।",
+        f"আপনার কাজের **৳{int(GMAIL_PRICE)}** অ্যাডমিন চেকের পর ব্যালেন্সে"
+        " যোগ হবে। বর্তমানে কাজুটি পেন্ডিং অবস্থায় আছে।",
         parse_mode="Markdown",
     )
 
@@ -818,8 +828,8 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
           parse_mode="Markdown",
           reply_markup=admin_keyboard,
       )
-    except Exception:
-      pass
+    except Exception as e:
+      print(f"Error sending message to admin: {e}")
 
   elif data.startswith("cancel_task_"):
     gmail_id = data.split("_")[2]
