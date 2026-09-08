@@ -139,7 +139,6 @@ def get_gmail_by_id(gmail_id):
     conn.close()
     return gmail
 
-# --- IMPROVED GMAIL REAL EXISTENCE CHECK ---
 def check_gmail_exists(email):
     """গুগলের একাউন্ট ইনিশিয়াল ভ্যালিডেশন দিয়ে সত্যতা যাচাই করে"""
     try:
@@ -150,12 +149,10 @@ def check_gmail_exists(email):
         req = urllib.request.Request(url, data=data, headers=headers)
         with urllib.request.urlopen(req, timeout=5) as response:
             res_text = response.read().decode('utf-8')
-            # যদি ইমেইল তৈরি না থাকে, গুগল রেসপন্সে নির্দিষ্ট এরর কোড দেয়
             if "NOT_FOUND" in res_text or "IdentifierNotFound" in res_text:
                 return False
             return True
     except Exception:
-        # কোনো কারণে নেটওয়ার্ক ব্লকিং হলে নিরাপদ থাকার জন্য False ধরে নেবে
         return False
 
 # --- HANDLERS ---
@@ -223,10 +220,8 @@ async def check_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
-    
     cursor.execute("SELECT COUNT(*) FROM gmail_stock WHERE status = 'approved'")
     approved_count = cursor.fetchone()[0]
-
     conn.close()
 
     msg = (
@@ -414,7 +409,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
 
-  elif "হেল্পলাইন" in text:
+    elif "হেল্পলাইন" in text:
         helpline_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💬 সরাসরি সাপোর্ট এডমিন", url=f"https://t.me/{HELPLINE_USERNAME}")]
         ])
@@ -505,7 +500,6 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         else:
-            # ফেক সাবমিটের সংখ্যা ১ বাড়ানো
             cursor.execute("UPDATE users SET fake_attempts = fake_attempts + 1 WHERE user_id = ?", (user_id,))
             cursor.execute("SELECT fake_attempts FROM users WHERE user_id = ?", (user_id,))
             attempts = cursor.fetchone()[0]
