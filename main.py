@@ -2,8 +2,6 @@ import asyncio
 import io
 import logging
 import random
-import smtplib
-import socket
 import sqlite3
 import string
 from telegram import (
@@ -28,7 +26,7 @@ logging.basicConfig(
 )
 
 # --- CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAFyieYesphBdY5jGMro07dD1C5QfQ5Q7iU"
+BOT_TOKEN = "8845301572:AAEtl_D_p65aIWLeUVeFwLMsVJ_3Utlss58"
 ADMIN_ID = 8422485324
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubsaport"
 HELPLINE_USERNAME = "gmailhub_Helpline"
@@ -64,7 +62,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT,
             password TEXT,
-            status TEXT DEFAULT 'available',
+            status TEXT DEFAULT 'pending',
             used_by INTEGER DEFAULT NULL
         )
     """)
@@ -131,30 +129,10 @@ def generate_auto_credentials():
 def get_gmail_by_id(gmail_id):
   conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
-  cursor.execute("SELECT email, password FROM gmail_stock WHERE id = ?", (gmail_id,))
+  cursor.execute("SELECT email, password, used_by FROM gmail_stock WHERE id = ?", (gmail_id,))
   gmail = cursor.fetchone()
   conn.close()
   return gmail
-
-# --- AUTOMATIC GMAIL VERIFICATION CHECK ---
-def check_gmail_exists(email):
-  """গুগল সার্ভারে মেল এর অস্তিত্ব ভেরিফাই করে"""
-  try:
-    domain = "gmail.com"
-    server = smtplib.SMTP(timeout=3)
-    server.connect("gmail-smtp-in.l.google.com", 25)
-    server.helo(socket.gethostname())
-    server.mail("test@example.com")
-    code, message = server.rcpt(str(email))
-    server.quit()
-    
-    # 250 মানে গুগল একসেপ্ট করেছে (অ্যাকাউন্ট তৈরি হয়েছে)
-    if code == 250:
-      return True
-    return False
-  except Exception:
-    # নেটওয়ার্ক ইস্যু হলে সিমুলেশন ট্রাই
-    return True
 
 # --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -213,7 +191,31 @@ async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         reply_markup=reply_markup,
     )
 
-# --- ADMIN COMMAND (/getused) ---
+# --- ADMIN COMMANDS ---
+async def check_stock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+  user_id = update.effective_user.id
+  if user_id != ADMIN_ID:
+    return
+
+  conn = sqlite3.connect(DB_NAME, timeout=15)
+  cursor = conn.cursor()
+  
+  cursor.execute("SELECT COUNT(*) FROM gmail_stock WHERE status = 'pending'")
+  pending_count = cursor.fetchone()[0]
+
+  cursor.execute("SELECT COUNT(*) FROM gmail_stock WHERE status = 'downloaded'")
+  downloaded_count = cursor.fetchone()[0]
+
+  conn.close()
+
+  msg = (
+      "📊 **এডমিন জিমেইল স্টক রিপোর্ট:**\n\n"
+      f"⏳ **ডাউনলোড করার জন্য রেডি (প্রসেসিং):** `{pending_count}` টি\n"
+      f"✅ **ইতোমধ্যে ডাউনলোড ও পেড করা হয়েছে:** `{downloaded_count}` টি\n\n"
+      "💡 *ডাউনলোড করতে `/getused` কমান্ড দিন।*"
+  )
+  await update.message.reply_text(msg, parse_mode="Markdown")
+
 async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
   user_id = update.effective_user.id
   if user_id != ADMIN_ID:
@@ -221,31 +223,68 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   conn = sqlite3.connect(DB_NAME, timeout=15)
   cursor = conn.cursor()
-  cursor.execute("SELECT id, email, password, used_by FROM gmail_stock WHERE status = 'approved'")
+  cursor.execute("SELECT id, email, password, used_by FROM gmail_stock WHERE status = 'pending'")
   rows = cursor.fetchall()
 
   if not rows:
     conn.close()
-    await update.message.reply_text("⚠️ **ডাউনলোড করার মতো কোনো নতুন অ্যাপ্রুভড জিমেইল নেই!**")
+    await update.message.reply_text("⚠️ **ডাউনলোড করার মতো কোনো নতুন জিমেইল প্রসেসিং এ নেই!**")
     return
 
-  file_content = "=== APPROVED REAL GMAILS ===\n\n"
+  file_content = "=== DOWNLOADED GMAILS ===\n\n"
   downloaded_ids = []
 
   for idx, row in enumerate(rows, 1):
-    g_id, email, password, used_by = row
-    file_content += f"{idx}. Email: {email} | Password: {password} | User ID: {used_by}\n"
+    g_id, email, password, target_user_id = row
+    file_content += f"{idx}. Email: {email} | Password: {password} | User ID: {target_user_id}\n"
     downloaded_ids.append(g_id)
 
+    # জিমেইল ডাউনলোড হওয়ার পর ইউজারের ব্যালেন্সে টাকা যোগ করা
+    cursor.execute(
+        "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, today_tasks = today_tasks + 1, total_tasks = total_tasks + 1 WHERE user_id = ?",
+        (GMAIL_PRICE, GMAIL_PRICE, target_user_id),
+    )
+
+    # রেফার বোনাস চেক
+    cursor.execute("SELECT referred_by, is_active FROM users WHERE user_id = ?", (target_user_id,))
+    user_info = cursor.fetchone()
+
+    if user_info and user_info[0] and user_info[1] == 0:
+      referred_by = user_info[0]
+      cursor.execute("UPDATE users SET is_active = 1 WHERE user_id = ?", (target_user_id,))
+      cursor.execute(
+          "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, referrals_count = referrals_count + 1 WHERE user_id = ?",
+          (REFERRAL_BONUS, REFERRAL_BONUS, referred_by),
+      )
+      try:
+        await context.bot.send_message(
+            chat_id=referred_by,
+            text=f"🎉 **রেফার বোনাস!**\nআপনার রেফার করা ইউজার ১ম সফল কাজ করায় সরাসরি অ্যাকাউন্টে **৳{REFERRAL_BONUS:.0f}.০০** বোনাস যোগ হয়েছে।",
+            parse_mode="Markdown",
+        )
+      except Exception:
+        pass
+
+    # ইউজারকে নোটিফিকেশন পাঠানো
+    try:
+      await context.bot.send_message(
+          chat_id=target_user_id,
+          text=f"✅ **আপনার জমাকৃত জিমেইলটি এডমিন কর্তৃক গৃহীত হয়েছে!**\n💰 আপনার ব্যালেন্সে **৳{int(GMAIL_PRICE)}.০০** যোগ করা হয়েছে।",
+          parse_mode="Markdown",
+      )
+    except Exception:
+      pass
+
   file_bytes = io.BytesIO(file_content.encode("utf-8"))
-  file_bytes.name = f"approved_gmails_{len(rows)}.txt"
+  file_bytes.name = f"downloaded_gmails_{len(rows)}.txt"
 
   await update.message.reply_document(
       document=file_bytes,
-      caption=f"📂 **মোট {len(rows)} টি অ্যাপ্রুভড জিমেইলের ফাইল।**",
+      caption=f"📂 **মোট {len(rows)} টি জিমেইল সফলভাবে ডাউনলোড করা হলো এবং জিমেইলগুলো বট থেকে ক্লিয়ার করা হলো।**",
       parse_mode="Markdown",
   )
 
+  # ফাইল ডাউনলোড শেষ হলে বট থেকে তা সম্পূর্ণ ডিলিট/ক্লিয়ার করে দেওয়া
   cursor.executemany("DELETE FROM gmail_stock WHERE id = ?", [(gid,) for gid in downloaded_ids])
   conn.commit()
   conn.close()
@@ -340,7 +379,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fn, ln, auto_email, auto_pass = generate_auto_credentials()
     conn = sqlite3.connect(DB_NAME, timeout=15)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO gmail_stock (email, password, status, used_by) VALUES (?, ?, 'used', ?)", (auto_email, auto_pass, user_id))
+    cursor.execute("INSERT INTO gmail_stock (email, password, status, used_by) VALUES (?, ?, 'pending', ?)", (auto_email, auto_pass, user_id))
     gmail_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -382,7 +421,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "📜 **কাজের নিয়মাবলী ও নোটিশ:**\n\n"
         "১. সঠিকভাবে জিমেইল খুলে তথ্য জমা দিন।\n"
-        "২. জিমেইল ভেরিফাই হলে টাকা সরাসরি আপনার বর্তমান ব্যালেন্সে যোগ হবে।\n"
+        "২. জমা দেওয়ার পর আপনার কাজ প্রসেসিং এ থাকবে। এডমিন রিভিউ করে ফাইল চেক করার পর ব্যালেন্স যোগ হবে।\n"
         "৩. কোনো প্রকার ভুল তথ্য বা ফেক অ্যাকাউন্ট দিলে তা বাতিল করা হবে।",
         parse_mode="Markdown",
     )
@@ -403,7 +442,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=helpline_keyboard,
     )
 
-# --- TASK SUBMISSION & AUTOMATIC CHECK ---
+# --- CALLBACK ACTIONS ---
 async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
   query = update.callback_query
   await query.answer()
@@ -435,75 +474,14 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     gmail_info = get_gmail_by_id(gmail_id)
 
     if not gmail_info:
-      await query.message.edit_text("⚠️ কাজের তথ্য পাওয়া যায়নি!")
+      await query.message.edit_text("⚠️ কাজের তথ্য পাওয়া যায়নি বা বাতিল করা হয়েছে!")
       return
 
-    email, password = gmail_info
-
-    # ইউজারকে ৩ সেকেন্ড ওয়েটিং মেসেজ দেখানো (অটো চেকিং ভাব আনার জন্য)
-    await query.message.edit_text("⏳ **আপনার জিমেইলটি ভেরিফাই করা হচ্ছে, অনুগ্রহ করে ৩ সেকেন্ড অপেক্ষা করুন...**", parse_mode="Markdown")
-    await asyncio.sleep(3)
-
-    # জিমেইল অটো ভেরিফিকেশন চেক
-    is_valid = check_gmail_exists(email)
-
-    if is_valid:
-      conn = sqlite3.connect(DB_NAME, timeout=15)
-      cursor = conn.cursor()
-
-      cursor.execute("UPDATE gmail_stock SET status = 'approved' WHERE id = ?", (gmail_id,))
-      cursor.execute(
-          "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, today_tasks = today_tasks + 1, total_tasks = total_tasks + 1 WHERE user_id = ?",
-          (GMAIL_PRICE, GMAIL_PRICE, user_id),
-      )
-
-      # রেফার বোনাস
-      cursor.execute("SELECT referred_by, is_active FROM users WHERE user_id = ?", (user_id,))
-      user_info = cursor.fetchone()
-
-      if user_info and user_info[0] and user_info[1] == 0:
-        referred_by = user_info[0]
-        cursor.execute("UPDATE users SET is_active = 1 WHERE user_id = ?", (user_id,))
-        cursor.execute(
-            "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, referrals_count = referrals_count + 1 WHERE user_id = ?",
-            (REFERRAL_BONUS, REFERRAL_BONUS, referred_by),
-        )
-        try:
-          await context.bot.send_message(
-              chat_id=referred_by,
-              text=f"🎉 **রেফার বোনাস!**\nআপনার রেফার করা ইউজার ১ম কাজ সম্পূর্ণ করায় সরাসরি অ্যাকাউন্টে **৳{REFERRAL_BONUS:.0f}.০০** বোনাস যোগ হয়েছে।",
-              parse_mode="Markdown",
-          )
-        except Exception:
-          pass
-
-      conn.commit()
-      conn.close()
-
-      await query.message.edit_text(
-          "✅ **আপনার কাজটি সফলভাবে জমা হয়েছে!**\n\n"
-          f"💰 আপনার ব্যালেন্সে **৳{int(GMAIL_PRICE)}.০০** টাকা যোগ করা হয়েছে।",
-          parse_mode="Markdown",
-      )
-
-    else:
-      # যদি জিমেইল না খুলে বা ফেক ট্রাই করে
-      conn = sqlite3.connect(DB_NAME, timeout=15)
-      cursor = conn.cursor()
-      cursor.execute("DELETE FROM gmail_stock WHERE id = ?", (gmail_id,))
-      conn.commit()
-      conn.close()
-
-      retry_keyboard = InlineKeyboardMarkup([
-          [InlineKeyboardButton("💼 নতুন জিমেইল নিয়ে কাজ করুন", callback_data="show_main_menu")]
-      ])
-
-      await query.message.edit_text(
-          "❌ **আপনার জিমেইলটি সঠিকভাবে খোলা হয়নি!**\n\n"
-          "দয়া করে পরবর্তীতে অন্য জিমেইল নিয়ে সঠিক নিয়মে খুলে **'কাজ জমা দিন'** বাটনে ক্লিক করুন।",
-          parse_mode="Markdown",
-          reply_markup=retry_keyboard
-      )
+    await query.message.edit_text(
+        "✅ **আপনার জিমেইলটি সফলভাবে প্রসেসিং এ জমা নেওয়া হয়েছে!**\n\n"
+        "⏳ এডমিন রিভিউ করে ফাইল চেক করার পর আপনার অ্যাকাউন্টে টাকা যোগ হয়ে যাবে।",
+        parse_mode="Markdown",
+    )
 
   elif data.startswith("cancel_task_"):
     gmail_id = data.split("_")[2]
@@ -569,6 +547,7 @@ def main():
   app = ApplicationBuilder().token(BOT_TOKEN).build()
 
   app.add_handler(CommandHandler("start", start))
+  app.add_handler(CommandHandler("stock", check_stock))
   app.add_handler(CommandHandler("getused", get_used_gmails))
 
   app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^(check_join|show_main_menu)$"))
