@@ -25,7 +25,7 @@ logging.basicConfig(
 )
 
 # --- CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAF4u3-ojODmEVvppH_H9RRaZ7sMq0lcLzw"
+BOT_TOKEN = "8845301572:AAFyieYesphBdY5jGMro07dD1C5QfQ5Q7iU"
 ADMIN_ID = 8422485324  # অ্যাডমিন আইডি
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubsaport"
 HELPLINE_USERNAME = "gmailhub_Helpline"
@@ -238,6 +238,9 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- MESSAGE HANDLING ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+  if not update.message or not update.message.text:
+    return
+
   text = update.message.text.strip()
   user_id = update.effective_user.id
 
@@ -301,7 +304,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
   add_user(user_id)
   user = get_user(user_id)
 
-  if "ব্যালেন্স & উইথড্র" in text:
+  # Flexible matching for button texts
+  if "ব্যালেন্স" in text:
     balance = user[1] if user else 0.0
     pending = user[2] if user else 0.0
     total = user[3] if user else 0.0
@@ -357,7 +361,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
     await update.message.reply_text(task_text, parse_mode="Markdown", reply_markup=task_keyboard)
 
-  elif "রেফার করুন" in text:
+  elif "রেফার" in text:
     bot_username = (await context.bot.get_me()).username
     ref_link = f"https://t.me/{bot_username}?start={user_id}"
     await update.message.reply_text(
@@ -366,7 +370,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-  elif "কাজের রিপোর্ট" in text:
+  elif "রিপোর্ট" in text:
     today = user[4] if user else 0
     total = user[5] if user else 0
     await update.message.reply_text(
@@ -376,7 +380,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-  elif "কাজের নিয়ম" in text:
+  elif "নিয়ম" in text:
     await update.message.reply_text(
         "📜 **কাজের নিয়মাবলী ও নোটিশ:**\n\n"
         "১. সঠিকভাবে জিমেইল খুলে তথ্য জমা দিন।\n"
@@ -385,7 +389,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-  elif "আমি নতুন (কাজের ভিডিও)" in text:
+  elif "ভিডিও" in text:
     await update.message.reply_text(
         f"🎥 **কাজ কিভাবে করবেন দেখতে নিচের লিংকে যান:**\n{WORK_VIDEO_LINK}",
         parse_mode="Markdown",
@@ -393,7 +397,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   elif "হেল্পলাইন" in text:
     await update.message.reply_text(
-        f"🆘 যেকোনো প্রয়োজনে যোগাযোগ করুন:\n👉 @{HELPLINE_USERNAME}",
+        f"🆘 **যেকোনো প্রয়োজনে যোগাযোগ করুন:**\n👉 @{HELPLINE_USERNAME}",
         parse_mode="Markdown",
     )
 
@@ -416,7 +420,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🩵 বিকাশ (Bkash)", callback_data="withdraw_Bkash")],
         [InlineKeyboardButton("🩷 নগদ (Nagad)", callback_data="withdraw_Nagad")],
     ])
-    await query.message.reply_text("💳 পেমেন্ট নেওয়ার মাধ্যম সিলেক্ট করুন:", parse_mode="Markdown", reply_markup=method_keyboard)
+    await query.message.reply_text("💳 পেমент নেওয়ার মাধ্যম সিলেক্ট করুন:", parse_mode="Markdown", reply_markup=method_keyboard)
 
   elif data.startswith("withdraw_"):
     method = data.split("_")[1]
