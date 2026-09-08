@@ -26,7 +26,7 @@ logging.basicConfig(
 
 # --- CONFIGURATION DATA ---
 BOT_TOKEN = "8845301572:AAFyieYesphBdY5jGMro07dD1C5QfQ5Q7iU"
-ADMIN_ID = 8422485324  # অ্যাডমিন আইডি
+ADMIN_ID = 8422485324
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubsaport"
 HELPLINE_USERNAME = "gmailhub_Helpline"
 
@@ -34,28 +34,6 @@ MIN_WITHDRAW = 100.0
 GMAIL_PRICE = 18.0
 REFERRAL_BONUS = 10.0
 WORK_VIDEO_LINK = "https://t.me/gmailhubsaport/3"
-
-# --- CREDENTIALS GENERATOR ---
-def generate_auto_credentials():
-  first_names = ["Ethan", "Oliver", "Lucas", "Mason", "Logan", "Alexander", "James", "Benjamin", "Henry", "Daniel"]
-  last_names = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis"]
-
-  fn = random.choice(first_names)
-  ln = random.choice(last_names)
-  random_num = random.randint(1024, 9989)
-
-  email = f"{fn.lower()}.{ln.lower()}{random_num}@gmail.com"
-
-  upper = random.choice(string.ascii_uppercase)
-  lower = "".join(random.choices(string.ascii_lowercase, k=4))
-  digits = "".join(random.choices(string.digits, k=3))
-  special = random.choice("@#$%&*")
-
-  pass_list = list(upper + lower + digits + special)
-  random.shuffle(pass_list)
-  password = "".join(pass_list)
-
-  return fn, ln, email, password
 
 # --- DATABASE SETUP ---
 DB_NAME = "gmail_bot_v2.db"
@@ -83,7 +61,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT,
             password TEXT,
-            status TEXT DEFAULT 'available',
+            status TEXT DEFAULT 'pending_submit',
             used_by INTEGER DEFAULT NULL
         )
     """)
@@ -125,22 +103,6 @@ def add_user(user_id, referred_by=None):
   )
   conn.commit()
   conn.close()
-
-def get_available_gmail():
-  conn = sqlite3.connect(DB_NAME, timeout=15)
-  cursor = conn.cursor()
-  cursor.execute("SELECT id, email, password FROM gmail_stock WHERE status = 'available' LIMIT 1")
-  gmail = cursor.fetchone()
-  conn.close()
-  return gmail
-
-def get_gmail_by_id(gmail_id):
-  conn = sqlite3.connect(DB_NAME, timeout=15)
-  cursor = conn.cursor()
-  cursor.execute("SELECT email, password FROM gmail_stock WHERE id = ?", (gmail_id,))
-  gmail = cursor.fetchone()
-  conn.close()
-  return gmail
 
 # --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -215,7 +177,7 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("⚠️ **ডাউনলোড করার মতো কোনো নতুন অ্যাপ্রুভড জিমেইল নেই!**")
     return
 
-  file_content = "=== APPROVED REAL GMAILS ===\n\n"
+  file_content = "=== SUBMITTED GMAILS ===\n\n"
   downloaded_ids = []
 
   for idx, row in enumerate(rows, 1):
@@ -228,7 +190,7 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
   await update.message.reply_document(
       document=file_bytes,
-      caption=f"📂 **মোট {len(rows)} টি অ্যাপ্রুভড রিয়েল জিমেইলের ফাইল।**",
+      caption=f"📂 **মোট {len(rows)} টি জিমেইলের ফাইল।**",
       parse_mode="Markdown",
   )
 
@@ -244,7 +206,65 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
   text = update.message.text.strip()
   user_id = update.effective_user.id
 
-  # Withdraw Wallet Input Processing
+  # জিমেইল সাবমিট প্রসেসিং
+  if context.user_data.get("awaiting_gmail_submit"):
+    if ":" not in text and " " not in text:
+      await update.message.reply_text("❌ **ভুল ফরম্যাট!** অনুগ্রহ করে `email:password` এভাবে লিখে পাঠান।")
+      return
+
+    try:
+      if ":" in text:
+        email, password = text.split(":", 1)
+      else:
+        email, password = text.split(" ", 1)
+      
+      email = email.strip()
+      password = password.strip()
+    except Exception:
+      await update.message.reply_text("❌ ফরম্যাট সঠিক নয়! উদাহরণ: `example@gmail.com:pass123`")
+      return
+
+    conn = sqlite3.connect(DB_NAME, timeout=15)
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO gmail_stock (email, password, status, used_by) VALUES (?, ?, 'approved', ?)", (email, password, user_id))
+    cursor.execute(
+        "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, today_tasks = today_tasks + 1, total_tasks = total_tasks + 1 WHERE user_id = ?",
+        (GMAIL_PRICE, GMAIL_PRICE, user_id),
+    )
+
+    # রেফার বোনাস
+    cursor.execute("SELECT referred_by, is_active FROM users WHERE user_id = ?", (user_id,))
+    user_info = cursor.fetchone()
+
+    if user_info and user_info[0] and user_info[1] == 0:
+      referred_by = user_info[0]
+      cursor.execute("UPDATE users SET is_active = 1 WHERE user_id = ?", (user_id,))
+      cursor.execute(
+          "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, referrals_count = referrals_count + 1 WHERE user_id = ?",
+          (REFERRAL_BONUS, REFERRAL_BONUS, referred_by),
+      )
+      try:
+        await context.bot.send_message(
+            chat_id=referred_by,
+            text=f"🎉 **রেফার বোনাস!**\nআপনার রেফার করা ইউজার ১ম কাজ সম্পূর্ণ করায় সরাসরি অ্যাকাউন্টে **৳{REFERRAL_BONUS:.0f}.০০** বোনাস যোগ হয়েছে।",
+            parse_mode="Markdown",
+        )
+      except Exception:
+        pass
+
+    conn.commit()
+    conn.close()
+    context.user_data.clear()
+
+    await update.message.reply_text(
+        "✅ **আপনার কাজ সফলভাবে জমা হয়েছে!**\n\n"
+        f"📩 জিমেইল: `{email}`\n"
+        f"💰 আপনার ব্যালেন্সে **৳{int(GMAIL_PRICE)}.০০** যোগ করা হয়েছে।",
+        parse_mode="Markdown",
+    )
+    return
+
+  # উইথড্র ওয়ালেট প্রসেসিং
   if context.user_data.get("awaiting_withdraw_wallet"):
     method = context.user_data.get("withdraw_method")
     wallet = text
@@ -304,7 +324,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
   add_user(user_id)
   user = get_user(user_id)
 
-  # Flexible matching for button texts
+  # সাধারণ বাটন হ্যান্ডলিং
   if "ব্যালেন্স" in text:
     balance = user[1] if user else 0.0
     pending = user[2] if user else 0.0
@@ -324,40 +344,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
   elif "কাজ শুরু করুন" in text:
-    gmail = get_available_gmail()
-
-    if gmail:
-      gmail_id, email, password = gmail
-      fn = email.split(".")[0].capitalize() if "." in email else "John"
-      ln = "Smith"
-    else:
-      fn, ln, auto_email, auto_pass = generate_auto_credentials()
-      conn = sqlite3.connect(DB_NAME, timeout=15)
-      cursor = conn.cursor()
-      cursor.execute("INSERT INTO gmail_stock (email, password) VALUES (?, ?)", (auto_email, auto_pass))
-      gmail_id = cursor.lastrowid
-      conn.commit()
-      conn.close()
-      email, password = auto_email, auto_pass
-
-    conn = sqlite3.connect(DB_NAME, timeout=15)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE gmail_stock SET status = 'used', used_by = ? WHERE id = ?", (user_id, gmail_id))
-    conn.commit()
-    conn.close()
-
     task_text = (
         "📧 **নতুন জিমেইল টাস্ক:**\n\n"
-        f"👤 **First Name:** `{fn}`\n"
-        f"👤 **Last Name:** `{ln}`\n"
-        f"🔹 **User Name:** `{email}`\n"
-        f"🔑 **Password:** `{password}`\n\n"
-        "ধাপ ১: তথ্যাদি দিয়ে জিমেইল অ্যাকাউন্ট খুলুন।\n"
-        "ধাপ ২: একাউন্ট খোলা শেষ হলে **'✅ কাজ জমা দিন'** এ চাপ দিন।"
+        "ধাপ ১: একটি নতুন জিমেইল অ্যাকাউন্ট তৈরি করুন।\n"
+        "ধাপ ২: অ্যাকাউন্ট তৈরি শেষ হলে **'✅ কাজ জমা দিন'** বাটনে চাপ দিন।"
     )
     task_keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ কাজ জমা দিন", callback_data=f"submit_task_{gmail_id}")],
-        [InlineKeyboardButton("❌ কাজ বাতিল", callback_data=f"cancel_task_{gmail_id}")],
+        [InlineKeyboardButton("✅ কাজ জমা দিন", callback_data="start_submit_process")],
+        [InlineKeyboardButton("❌ কাজ বাতিল", callback_data="cancel_task_process")],
     ])
     await update.message.reply_text(task_text, parse_mode="Markdown", reply_markup=task_keyboard)
 
@@ -396,12 +390,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
   elif "হেল্পলাইন" in text:
+    helpline_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 সরাসরি সাপোর্ট এডমিন", url=f"https://t.me/{HELPLINE_USERNAME}")]
+    ])
     await update.message.reply_text(
-        f"🆘 **যেকোনো প্রয়োজনে যোগাযোগ করুন:**\n👉 @{HELPLINE_USERNAME}",
+        f"🆘 **যেকোনো প্রয়োজনে আমাদের এডমিন সাপোর্টে কথা বলুন:**",
         parse_mode="Markdown",
+        reply_markup=helpline_keyboard
     )
 
-# --- TASK SUBMISSION & APPROVAL ---
+# --- CALLBACK ACTIONS ---
 async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
   query = update.callback_query
   await query.answer()
@@ -420,7 +418,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🩵 বিকাশ (Bkash)", callback_data="withdraw_Bkash")],
         [InlineKeyboardButton("🩷 নগদ (Nagad)", callback_data="withdraw_Nagad")],
     ])
-    await query.message.reply_text("💳 পেমент নেওয়ার মাধ্যম সিলেক্ট করুন:", parse_mode="Markdown", reply_markup=method_keyboard)
+    await query.message.reply_text("💳 পেমেন্ট নেওয়ার মাধ্যম সিলেক্ট করুন:", parse_mode="Markdown", reply_markup=method_keyboard)
 
   elif data.startswith("withdraw_"):
     method = data.split("_")[1]
@@ -428,60 +426,17 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["withdraw_method"] = method
     await query.message.reply_text(f"📱 আপনার **{method}** নম্বরটি লিখে পাঠান:", parse_mode="Markdown")
 
-  elif data.startswith("submit_task_"):
-    gmail_id = data.split("_")[2]
-    gmail_info = get_gmail_by_id(gmail_id)
-
-    if not gmail_info:
-      await query.message.edit_text("⚠️ কাজের তথ্য পাওয়া যায়নি!")
-      return
-
-    # অটো-অ্যাপ্রুভ ও অটো-ব্যালেন্স ক্যালকুলেশন
-    conn = sqlite3.connect(DB_NAME, timeout=15)
-    cursor = conn.cursor()
-
-    cursor.execute("UPDATE gmail_stock SET status = 'approved' WHERE id = ?", (gmail_id,))
-    cursor.execute(
-        "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, today_tasks = today_tasks + 1, total_tasks = total_tasks + 1 WHERE user_id = ?",
-        (GMAIL_PRICE, GMAIL_PRICE, user_id),
+  elif data == "start_submit_process":
+    context.user_data["awaiting_gmail_submit"] = True
+    await query.message.reply_text(
+        "📥 **আপনার তৈরি করা জিমেইলটি পাঠান:**\n\n"
+        "ফরম্যাট: `email:password`\n"
+        "উদাহরণ: `gmailhub12@gmail.com:Pass1234`",
+        parse_mode="Markdown"
     )
 
-    # অটোমেটিক রেফারেল বোনাস বণ্টন
-    cursor.execute("SELECT referred_by, is_active FROM users WHERE user_id = ?", (user_id,))
-    user_info = cursor.fetchone()
-
-    if user_info and user_info[0] and user_info[1] == 0:
-      referred_by = user_info[0]
-      cursor.execute("UPDATE users SET is_active = 1 WHERE user_id = ?", (user_id,))
-      cursor.execute(
-          "UPDATE users SET balance = balance + ?, total_earned = total_earned + ?, referrals_count = referrals_count + 1 WHERE user_id = ?",
-          (REFERRAL_BONUS, REFERRAL_BONUS, referred_by),
-      )
-      try:
-        await context.bot.send_message(
-            chat_id=referred_by,
-            text=f"🎉 **রেফার বোনাস!**\nআপনার রেফার করা ইউজার ১ম কাজ সম্পূর্ণ করায় সরাসরি অ্যাকাউন্টে **৳{REFERRAL_BONUS:.0f}.০০** বোনাস যোগ হয়েছে।",
-            parse_mode="Markdown",
-        )
-      except Exception:
-        pass
-
-    conn.commit()
-    conn.close()
-
-    await query.message.edit_text(
-        "✅ **আপনার কাজ সফলভাবে জমা হয়েছে!**\n\n"
-        f"💰 আপনার বর্তমান ব্যালেন্সে **৳{int(GMAIL_PRICE)}.০০** যোগ করা হয়েছে।",
-        parse_mode="Markdown",
-    )
-
-  elif data.startswith("cancel_task_"):
-    gmail_id = data.split("_")[2]
-    conn = sqlite3.connect(DB_NAME, timeout=15)
-    cursor = conn.cursor()
-    cursor.execute("UPDATE gmail_stock SET status = 'available', used_by = NULL WHERE id = ?", (gmail_id,))
-    conn.commit()
-    conn.close()
+  elif data == "cancel_task_process":
+    context.user_data.clear()
     await query.message.edit_text("❌ **আপনার কাজটি বাতিল করা হয়েছে!**", parse_mode="Markdown")
 
 # --- ADMIN CALLBACK ACTIONS ---
@@ -542,7 +497,7 @@ def main():
   app.add_handler(CommandHandler("getused", get_used_gmails))
 
   app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^(check_join|show_main_menu)$"))
-  app.add_handler(CallbackQueryHandler(main_callbacks, pattern="^(request_withdraw|withdraw_|submit_task_|cancel_task_)"))
+  app.add_handler(CallbackQueryHandler(main_callbacks, pattern="^(request_withdraw|withdraw_|start_submit_process|cancel_task_process)"))
   app.add_handler(CallbackQueryHandler(admin_action_callback, pattern="^(w_approve_|w_reject_)"))
   app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
