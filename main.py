@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 
 # --- CONFIGURATION DATA ---
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"      # আপনার বটের টোকেন দিন
+BOT_TOKEN = "8845301572:AAEtl_D_p65aIWLeUVeFwLMsVJ_3Utlss58"      # আপনার বটের টোকেন দিন
 ADMIN_ID = 8422485324                  # আপনার এডমিন আইডি
 CHANNEL_USERNAME = "@gmailhubsaport"   # টেলিগ্রাম চ্যানেলের ইউজারনেম
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubsaport"
