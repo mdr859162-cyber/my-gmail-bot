@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 
 # --- CONFIGURATION DATA ---
-BOT_TOKEN = "8845301572:AAEtl_D_p65aIWLeUVeFwLMsVJ_3Utlss58"      # আপনার বটের টোকেন দিন
+BOT_TOKEN = "8845301572:AAEtl_D_p65aIWLeUVeFwLMsVJ_3Utlss58"  # আপনার বটের টোকেন বসিয়ে দেওয়া হয়েছে
 ADMIN_ID = 8422485324                  # আপনার এডমিন আইডি
 CHANNEL_USERNAME = "@gmailhubsaport"   # টেলিগ্রাম চ্যানেলের ইউজারনেম
 SUPPORT_GROUP_LINK = "https://t.me/gmailhubsaport"
@@ -367,7 +367,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     add_user(user_id)
     user = get_user(user_id)
 
-    if text == "💰 ব্যালেন্স & উইথড্র 💳":
+    # পুরনো এবং নতুন উভয় ধরণের বাটনের সাথেই সাপোর্ট দেওয়া হলো (ম্যাচিং ফিক্স)
+    if "ব্যালেন্স" in text:
         balance = user[1] if user else 0.0
         pending = user[2] if user else 0.0
         total = user[3] if user else 0.0
@@ -385,7 +386,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💸 টাকা উইথড্র করুন 🏦", callback_data="request_withdraw")]]),
         )
 
-    elif text == "💼 কাজ শুরু করুন 🚀":
+    elif "কাজ শুরু করুন" in text:
         fn, ln, auto_email, auto_pass = generate_auto_credentials()
         conn = sqlite3.connect(DB_NAME, timeout=15)
         cursor = conn.cursor()
@@ -408,7 +409,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ])
         await update.message.reply_text(task_text, parse_mode="Markdown", reply_markup=task_keyboard)
 
-    elif text == "👥 রেফার করুন 🎁":
+    elif "রেফার করুন" in text:
         bot_username = (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         ref_count = user[7] if user else 0
@@ -425,7 +426,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(ref_msg, parse_mode="Markdown")
 
-    elif text == "📊 কাজের রিপোর্ট 📈":
+    elif "কাজের রিপোর্ট" in text:
         today = user[4] if user else 0
         total = user[5] if user else 0
         await update.message.reply_text(
@@ -435,7 +436,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="Markdown",
         )
 
-    elif text == "📜 কাজের নিয়ম ⚠️":
+    elif "কাজের নিয়ম" in text or "কাজের নিয়ম" in text:
         rule_msg = (
             "📜 **কাজের নিয়মাবলী ও নির্দেশিকা:** ⚠️\n\n"
             "১. **দয়া করে বট থেকে সঠিক জিমেইল এবং পাসওয়ার্ড নিয়ে জিমেইল খুলে সঠিক নিয়মে জমা দিন।** 📧\n"
@@ -444,13 +445,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.message.reply_text(rule_msg, parse_mode="Markdown")
 
-    elif text == "🎥 আমি নতুন (কাজের ভিডিও) 🎬":
+    elif "কাজের ভিডিও" in text or "আমি নতুন" in text:
         await update.message.reply_text(
             f"🎥 **সহজে কাজ শেখার নির্দেশিকা ভিডিও:** 🎬\n{WORK_VIDEO_LINK}",
             parse_mode="Markdown",
         )
 
-    elif text == "🆘 হেল্পলাইন 📞":
+    elif "হেল্পলাইন" in text:
         helpline_keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💬 সরাসরি সাপোর্ট এডমিন 👨‍💻", url=f"https://t.me/{HELPLINE_USERNAME}")]
         ])
@@ -635,7 +636,7 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_action_callback, pattern="^(w_approve_|w_reject_)"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Bot is ready and running smoothly with full requested updates...")
+    print("Bot is ready and running smoothly...")
     app.run_polling()
 
 if __name__ == "__main__":
