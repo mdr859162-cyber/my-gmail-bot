@@ -580,7 +580,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(f"📱 আপনার **{method}** নম্বরটি লিখে আমাদের মেসেজ পাঠাও:", parse_mode="Markdown")
 
     elif data.startswith("submit_task_"):
-        gmail_id = data.split("_")[2]
+        gmail_id = data.replace("submit_task_", "")
         gmail_info = get_gmail_by_id(gmail_id)
 
         if not gmail_info:
@@ -635,7 +635,7 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     elif data.startswith("cancel_task_"):
-        gmail_id = data.split("_")[2]
+        gmail_id = data.replace("cancel_task_", "")
         conn = sqlite3.connect(DB_NAME, timeout=15)
         cursor = conn.cursor()
         cursor.execute("DELETE FROM gmail_stock WHERE id = ?", (gmail_id,))
@@ -706,8 +706,8 @@ def main():
     app.add_handler(CommandHandler("getused", get_used_gmails))
 
     app.add_handler(CallbackQueryHandler(check_join_callback, pattern="^(check_join|show_main_menu)$"))
-    app.add_handler(CallbackQueryHandler(main_callbacks, pattern="^(request_withdraw|withdraw_|submit_task_|cancel_task_)"))
-    app.add_handler(CallbackQueryHandler(admin_action_callback, pattern="^(w_approve_|w_reject_)"))
+    app.add_handler(CallbackQueryHandler(main_callbacks, pattern="^(request_withdraw|withdraw_.*|submit_task_.*|cancel_task_.*)$"))
+    app.add_handler(CallbackQueryHandler(admin_action_callback, pattern="^(w_approve_.*|w_reject_.*)$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Bot is ready and running smoothly with background verification engine...")
