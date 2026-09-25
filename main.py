@@ -122,7 +122,6 @@ def generate_auto_credentials():
     fn = random.choice(first_names)
     ln = random.choice(last_names)
     
-    # ১. ইউনিক ইউজারনেম জেনারেটর (সাফিক্স ও র‍্যান্ডম ডিজিট মিক্সড)
     random_str = ''.join(random.choices(string.ascii_lowercase, k=2))
     random_num = random.randint(1024, 9989)
     email = f"{fn.lower()}.{ln.lower()}.{random_str}{random_num}@gmail.com"
@@ -136,7 +135,6 @@ def generate_auto_credentials():
     random.shuffle(pass_list)
     password = "".join(pass_list)
 
-    # ডাইনামিক রিকভারি ইমেইল প্রোভাইডার
     recovery_email = f"rec.{random_str}{random_num}@gmailhub.com"
 
     return fn, ln, email, password, recovery_email
@@ -158,7 +156,6 @@ async def is_user_joined(user_id, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         return False
 
-# ইনস্ট্যান্ট বেসিক ফিল্টার (৩ সেকেন্ড চ্যাকিং)
 def check_gmail_exists(email):
     try:
         url = "https://accounts.google.com/_/signin/v2/lookup"
@@ -174,12 +171,11 @@ def check_gmail_exists(email):
     except Exception:
         return False
 
-# ২৪ ঘণ্টার ডিপ ভেরিফিকেশন ব্যাকগ্রাউন্ড টাস্ক (Cron Engine)
 async def deep_verification_worker(app):
     while True:
         try:
             current_time = time.time()
-            twenty_four_hours_ago = current_time - 86400  # ২৪ ঘণ্টা (৮৬৪০০ সেকেন্ড)
+            twenty_four_hours_ago = current_time - 86400
 
             conn = sqlite3.connect(DB_NAME, timeout=15)
             cursor = conn.cursor()
@@ -191,8 +187,6 @@ async def deep_verification_worker(app):
 
             for item in pending_items:
                 g_id, email, password, recovery_email, user_id = item
-                
-                # ডিপ ব্যাকগ্রাউন্ড ভেরিফিকেশন
                 is_valid = check_gmail_exists(email)
 
                 if is_valid:
@@ -249,7 +243,7 @@ async def deep_verification_worker(app):
         except Exception as e:
             logging.error(f"Error in deep verification worker: {e}")
 
-        await asyncio.sleep(600)  # প্রতি ১০ মিনিট পর পর ব্যাকগ্রাউন্ড লুপ চলবে
+        await asyncio.sleep(600)
 
 # --- HANDLERS ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -280,7 +274,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def check_join_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception:
+        pass
     user_id = query.from_user.id
 
     menu_keyboard = [
@@ -368,7 +365,6 @@ async def get_used_gmails(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown",
     )
 
-    # ডাউনলোডের পরপরই স্টক সম্পূর্ণ ক্লিয়ার
     cursor.executemany("DELETE FROM gmail_stock WHERE id = ?", [(gid,) for gid in downloaded_ids])
     conn.commit()
     conn.close()
@@ -555,7 +551,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- CALLBACK ACTIONS ---
 async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception:
+        pass
     user_id = query.from_user.id
     data = query.data
 
@@ -592,14 +591,12 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.edit_text("⏳ **আপনার জিমেইলটি ভেরিফাই করা হচ্ছে, অনুগ্রহ করে ৩ সেকেন্ড অপেক্ষা করুন...** 🔍", parse_mode="Markdown")
         await asyncio.sleep(3)
 
-        # ১. ইনস্ট্যান্ট বেসিক ফিল্টার চেক (৩ সেকেন্ডে)
         is_valid = check_gmail_exists(email)
 
         conn = sqlite3.connect(DB_NAME, timeout=15)
         cursor = conn.cursor()
 
         if is_valid:
-            # ইনস্ট্যান্ট ভেরিফাইড হিসেবে ২৪ ঘণ্টার ডিপ চেক প্রসেসে পাঠানো
             cursor.execute("UPDATE gmail_stock SET status = 'instant_verified', created_at = ? WHERE id = ?", (time.time(), gmail_id))
             conn.commit()
             conn.close()
@@ -611,7 +608,6 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         else:
-            # অস্তিত্ব না থাকলে আপনার কোডের অরিজিনাল ওয়ার্নিং মেসেজই ট্রিগার হবে
             cursor.execute("DELETE FROM gmail_stock WHERE id = ?", (gmail_id,))
             cursor.execute("UPDATE users SET fake_attempts = fake_attempts + 1 WHERE user_id = ?", (user_id,))
             cursor.execute("SELECT fake_attempts FROM users WHERE user_id = ?", (user_id,))
@@ -646,7 +642,10 @@ async def main_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # --- ADMIN CALLBACK ACTIONS ---
 async def admin_action_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
+    try:
+        await query.answer()
+    except Exception:
+        pass
     data = query.data
 
     if data.startswith("w_approve_"):
@@ -695,7 +694,6 @@ async def admin_action_callback(update: Update, context: ContextTypes.DEFAULT_TY
             pass
 
 async def post_init(app):
-    # ব্যাকগ্রাউন্ড ডিপ ভেরিফিকেশন ইঞ্জিন চালুকরণ
     asyncio.create_task(deep_verification_worker(app))
 
 def main():
@@ -710,8 +708,8 @@ def main():
     app.add_handler(CallbackQueryHandler(admin_action_callback, pattern="^(w_approve_.*|w_reject_.*)$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Bot is ready and running smoothly with background verification engine...")
-    app.run_polling()
+    print("Bot is ready and running smoothly...")
+    app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
     main()
